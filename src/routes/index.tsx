@@ -1,24 +1,36 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2, Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X } from "lucide-react";
-import { createPortal } from "react-dom";
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "../integrations/supabase/client";
-
-export const Route = createFileRoute("/")({ component: Index });
-
-const SERVICES = [
-  { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
-  { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "bg-sky-500" },
-  { value: "HR", label: "HR", desc: "Human Resources", color: "bg-violet-500" },
-  { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "bg-emerald-500" },
-];
-
 function Index() {
   const [loading, setLoading] = useState(false);
   const [ticket, setTicket] = useState<any>(null);
   const [position, setPosition] = useState<number | null>(null);
   const [form, setForm] = useState({ nama: "", nik: "", kontak: "", layanan: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ==========================================
+  // 1. RESTORE TIKET SAAT HALAMAN DI-REFRESH
+  // ==========================================
+  useEffect(() => {
+    const saved = localStorage.getItem("current_ticket");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setTicket(parsed.ticket);
+        setPosition(parsed.position);
+      } catch (e) {
+        localStorage.removeItem("current_ticket");
+      }
+    }
+  }, []);
+
+  // ==========================================
+  // 2. SIMPAN TIKET KE LOCALSTORAGE SAAT DAPAT
+  // ==========================================
+  useEffect(() => {
+    if (ticket) {
+      localStorage.setItem("current_ticket", JSON.stringify({ ticket, position }));
+    } else {
+      localStorage.removeItem("current_ticket");
+    }
+  }, [ticket, position]);
 
   const updateForm = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -45,7 +57,12 @@ function Index() {
     else { setPosition((count ?? 0) + 1); setTicket(data); }
   };
 
-  const reset = () => { setTicket(null); setForm({ nama: "", nik: "", kontak: "", layanan: "" }); setErrors({}); setPosition(null); };
+  const reset = () => { 
+    setTicket(null); 
+    setForm({ nama: "", nik: "", kontak: "", layanan: "" }); 
+    setErrors({}); 
+    setPosition(null); 
+  };
 
   return (
     <div className="relative min-h-screen bg-[#F4F6FB] flex items-center justify-center p-4 overflow-hidden">
