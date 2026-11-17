@@ -38,20 +38,20 @@ function Petugas() {
   }, []);
 
   // FUNGSI SUARA PANGGILAN
-  const suaraPanggilan = (nomorAntrean: string) => {
-    if ('speechSynthesis' in window) {
-      // Pisahkan huruf dan angka (Contoh: "A-001" jadi "A, nol nol satu" agar terdengar natural)
-      const teks = `Nomor antrean ${nomorAntrean.replace('-', ' ').replace('0', 'nol ')}, silakan menuju loket.`;
-      
-      const speech = new SpeechSynthesisUtterance(teks);
-      speech.lang = 'id-ID'; // Set bahasa Indonesia
-      speech.rate = 0.9; // Sedikit lebih lambat agar jelas
-      
-      // Batalkan suara sebelumnya jika sedang berbicara
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(speech);
+   const updateStatus = async (id: string, newStatus: string, nomor: string, nama: string) => {
+    const { error } = await supabase
+      .from("queues")
+      .update({ status: newStatus })
+      .eq("id", id);
+
+    if (error) {
+      alert("Gagal update status: " + error.message);
     } else {
-      alert("Browser Anda tidak mendukung fitur suara.");
+      // Jika statusnya 'called', bunyikan suara lengkap dengan nama dan loket
+      if (newStatus === 'called') {
+        suaraPanggilan(nomor, nama, "1"); // "1" adalah nomor loket, bisa diubah
+      }
+      fetchQueues();
     }
   };
 
@@ -124,7 +124,7 @@ function Petugas() {
                 <div className="flex gap-2">
                   {q.status === 'waiting' && (
                     <button 
-                      onClick={() => updateStatus(q.id, 'called', q.queue_number)}
+                      onClick={() => updateStatus(q.id, 'called', q.queue_number, q.customer_name)}
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-medium transition-colors"
                     >
                       <Volume2 className="w-4 h-4" /> Panggil
