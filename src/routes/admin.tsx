@@ -1,18 +1,63 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
-import { Users, Clock, CheckCircle, Star, LogOut, ArrowLeft } from "lucide-react";
+import { Users, Clock, CheckCircle, Star, LogOut, ArrowLeft, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({ component: Admin });
 
 function Admin() {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<any>(null);
   const [stats, setStats] = useState({ total: 0, waiting: 0, completed: 0, avgRating: 0 });
   const [services, setServices] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // 1. CEK LOGIN (Session Guard)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    
+    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
+      setSession(s);
+      setLoading(false);
+    });
+    
+    return () => { sub.subscription.unsubscribe(); };
+  }, []);
+
+  // 2. JIKA BELUM LOGIN, TAMPILKAN HALAMAN INI
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><p>Memuat...</p></div>;
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-slate-200 max-w-sm w-full">
+          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">Akses Ditolak</h2>
+          <p className="text-sm text-slate-500 mt-2 mb-6">
+            Halaman Admin membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
+          </p>
+          <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition active:scale-95">
+            Login Admin
+          </Link>
+          <Link to="/" className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition">
+            <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. JIKA SUDAH LOGIN, JALANKAN FETCH DATA
   useEffect(() => {
     fetchData();
-    // Realtime subscription
     const channel = supabase.channel('admin-stats')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queues' }, fetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feedbacks' }, fetchData)
@@ -23,26 +68,26 @@ function Admin() {
   const fetchData = async () => {
     const today = new Date().toISOString().split('T')[0];
     
-    // 1. Stats Harian
+    // Stats Harian
     const { count: total } = await supabase.from("queues").select("*", { count: "exact", head: true }).gte("created_at", `${today}T00:00:00`);
     const { count: waiting } = await supabase.from("queues").select("*", { count: "exact", head: true }).eq("status", "waiting").gte("created_at", `${today}T00:00:00`);
     const { count: completed } = await supabase.from("queues").select("*", { count: "exact", head: true }).eq("status", "completed").gte("created_at", `${today}T00:00:00`);
     
-    // 2. Rata-rata Rating
+    // Rata-rata Rating
     const { data: feedbacks } = await supabase.from("feedbacks").select("rating").gte("created_at", `${today}T00:00:00`);
-    const avgRating = feedbacks?.length ? (feedbacks.reduce((acc, curr) => acc + curr.rating, 0) / feedbacks.length).toFixed(1) : "0.0";
+    const avgRating = feedbacks?.length ? (feedbacks.reduce((acc: number, curr: any) => acc + curr.rating, 0) / feedbacks.length).toFixed(1) : "0.0";
 
-    // 3. Grafik Layanan
+    // Grafik Layanan
     const { data: svcData } = await supabase.from("queues").select("service_type").gte("created_at", `${today}T00:00:00`);
     const svcCount: Record<string, number> = {};
-    svcData?.forEach(q => { svcCount[q.service_type] = (svcCount[q.service_type] || 0) + 1; });
+    svcData?.forEach((q: any) => { svcCount[q.service_type] = (svcCount[q.service_type] || 0) + 1; });
     const maxVal = Math.max(...Object.values(svcCount), 1);
     setServices(Object.entries(svcCount).map(([name, count]) => ({ name, count, pct: (count / maxVal) * 100 })));
 
-    // 4. Riwayat
+    // Riwayat
     const { data: hist } = await supabase.from("queues").select(`*, feedbacks(rating)`).order("created_at", { ascending: false }).limit(10);
     setHistory(hist || []);
-    setStats({ total: total || 0, waiting: waiting || 0, completed: completed || 0, avgRating: parseFloat(avgRating) });
+    setStats({ total: total || 0, waiting: waiting || 0, completed: completed || 0, avgRating: parseFloat(avgRating as string) });
   };
 
   return (
@@ -54,12 +99,18 @@ function Admin() {
             <Link to="/" className="p-2 hover:bg-slate-100 rounded-lg"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
               <h1 className="text-xl font-bold text-slate-800">Pintar Panel (Admin)</h1>
-              <p className="text-xs text-slate-500">Monitoring Real-time & Laporan Harian</p>
+              <p className="text-xs text-slate-500">Monitoring Real-time & Laporan Harian • {session.user?.email}</p>
             </div>
           </div>
-          <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition">
+          <button 
+            onClick={async () => {
+              await supabase.auth.signOut();
+              navigate({ to: "/" });
+            }} 
+            className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition"
+          >
             <LogOut className="w-4 h-4" /> Keluar
-          </Link>
+          </button>
         </div>
 
         {/* Stats Cards */}
@@ -75,7 +126,7 @@ function Admin() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <h3 className="font-bold text-slate-800 mb-4">Antrean per Layanan (Hari Ini)</h3>
             <div className="space-y-4">
-              {services.length === 0 ? <p className="text-sm text-slate-400">Belum ada data.</p> : services.map(s => (
+              {services.length === 0 ? <p className="text-sm text-slate-400">Belum ada data.</p> : services.map((s: any) => (
                 <div key={s.name}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="font-semibold text-slate-700">{s.name}</span>
@@ -98,7 +149,7 @@ function Admin() {
                   <tr><th className="text-left p-2">No</th><th className="text-left p-2">Nama</th><th className="text-left p-2">Status</th><th className="text-left p-2">Rating</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {history.map(h => (
+                  {history.map((h: any) => (
                     <tr key={h.id}>
                       <td className="p-2 font-bold text-blue-600">{h.queue_number}</td>
                       <td className="p-2 text-slate-700">{h.customer_name}</td>
