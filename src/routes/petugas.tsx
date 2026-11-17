@@ -1,200 +1,331 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle, Volume2, Users, Clock, Activity, LogOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowLeft, CheckCircle, Volume2, Users, Clock, Activity, LogOut,
+  Zap, Ticket, RefreshCw, Search, ChevronsRight, ChevronLeft, ChevronRight,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
 
-export const Route = createFileRoute("/petugas")({
-  component: Petugas, 
-});
+export const Route = createFileRoute("/petugas")({ component: Petugas });
+
+type Status = "waiting" | "called" | "completed" | "skipped";
+const PAGE_SIZE = 5;
 
 function Petugas() {
   const [queues, setQueues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(new Date());
+  const [filter, setFilter] = useState<"all" | Status>("all");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
 
+  const loket = "1"; // TODO: ambil dari session petugas
+
+  /* ---------- FETCH + REALTIME ---------- */
   const fetchQueues = async () => {
-    const { data, error } = await supabase
-      .from("queues")
-      .select("*")
+    const { data } = await supabase
+      .from("queues").select("*")
       .order("created_at", { ascending: true });
-
-    if (!error && data) {
-      setQueues(data);
-    }
+    if (data) setQueues(data);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchQueues();
-    const subscription = supabase
-      .channel('public:queues')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queues' }, () => {
-        fetchQueues();
-      })
+    const ch = supabase.channel("public:queues")
+      .on("postgres_changes", { event: "*", schema: "public", table: "queues" }, fetchQueues)
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => { supabase.removeChannel(ch); clearInterval(t); };
   }, []);
 
-  const suaraPanggilan = (nomorAntrean: string, nama: string, loket: string = "1") => {
-    if ('speechSynthesis' in window) {
-      const teks = `Nomor antrean ${nomorAntrean.replace('-', ' ').replace('0', 'nol ')}, atas nama ${nama}, silakan menuju ke loket ${loket}.`;
-      const speech = new SpeechSynthesisUtterance(teks);
-      speech.lang = 'id-ID'; 
-      speech.rate = 0.85; 
-      window.speechSynthesis.cancel(); 
-      window.speechSynthesis.speak(speech);
-    }
+  /* ---------- SPEECH ---------- */
+  const suaraPanggilan = (nomor: string, nama: string, lk = loket) => {
+    if (!("speechSynthesis" in window)) return;
+    const teks = `Nomor antrean ${nomor.replace("-", " ").replace(/0/g, "nol ")}, atas nama ${nama}, silakan menuju ke loket ${lk}.`;
+    const s = new SpeechSynthesisUtterance(teks);
+    s.lang = "id-ID"; s.rate = 0.85;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(s);
   };
 
-  const updateStatus = async (id: string, newStatus: string, nomor: string, nama: string) => {
-    const { error } = await supabase
-      .from("queues")
-      .update({ status: newStatus })
-      .eq("id", id);
-
+  /* ---------- ACTIONS ---------- */
+  const updateStatus = async (id: string, newStatus: Status, nomor: string, nama: string, lk = loket) => {
+    const patch: any = { status: newStatus };
+    if (newStatus === "completed") patch.completed_at = new Date().toISOString();
+    if (newStatus === "called") patch.called_at = new Date().toISOString();
+    const { error } = await supabase.from("queues").update(patch).eq("id", id);
     if (!error) {
-      if (newStatus === 'called') {
-        suaraPanggilan(nomor, nama, "1"); 
-      }
+      if (newStatus === "called") suaraPanggilan(nomor, nama, lk);
       fetchQueues();
     }
   };
 
-  // Hitung statistik
-  const totalAntrean = queues.length;
-  const menunggu = queues.filter(q => q.status === 'waiting').length;
-  const selesai = queues.filter(q => q.status === 'completed').length;
-  
-  // Ambil antrean yang sedang dipanggil (jika ada)
-  const currentCalled = queues.find(q => q.status === 'called');
-  const waitingList = queues.filter(q => q.status === 'waiting');
+  const callNext = () => {
+    const next = queues.find(q => q.status === "waiting");
+    if (next) updateStatus(next.id, "called", next.queue_number, next.customer_name);
+  };
 
+  /* ---------- DERIVED ---------- */
+  const waiting = queues.filter(q => q.status === "waiting");
+  const current = queues.find(q => q.status === "called");
+  const completed = queues.filter(q => q.status === "completed");
+  const skipped = queues.filter(q => q.status === "skipped");
+
+  const avgMin = useMemo(() => {
+    const withTime = completed.filter(q => q.completed_at && q.created_at);
+    if (!withTime.length) return null;
+    const total = withTime.reduce((s, q) =>
+      s + (new Date(q.completed_at).getTime() - new Date(q.created_at).getTime()) / 60000, 0);
+    return (total / withTime.length).toFixed(1);
+  }, [completed]);
+
+  const counts = { all: queues.length, waiting: waiting.length, completed: completed.length, skipped: skipped.length };
+
+  const visible = useMemo(() => {
+    let list = filter === "all" ? queues : queues.filter(q => q.status === filter);
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      list = list.filter(q =>
+        q.customer_name?.toLowerCase().includes(s) ||
+        q.queue_number?.toLowerCase().includes(s));
+    }
+    return list;
+  }, [queues, filter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const paged = visible.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
+  /* ---------- HELPERS UI ---------- */
+  const maskNik = (nik?: string) =>
+    nik ? `${nik.slice(0, 4)}${"*".repeat(Math.max(0, nik.length - 8))}${nik.slice(-4)}` : "—";
+
+  const serviceBadge = (type: string) => {
+    const t = (type || "").toLowerCase();
+    if (t.includes("npp")) return "bg-indigo-50 text-indigo-700 border-indigo-200";
+    if (t.includes("konsultasi")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (t.includes("pendaftaran")) return "bg-violet-50 text-violet-700 border-violet-200";
+    if (t.includes("izin")) return "bg-amber-50 text-amber-700 border-amber-200";
+    return "bg-slate-50 text-slate-700 border-slate-200";
+  };
+
+  const statusBadge = (q: any) => {
+    switch (q.status) {
+      case "called": return <span className="inline-flex items-center gap-1.5 text-blue-700"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />Dipanggil di Loket {q.loket || loket}</span>;
+      case "waiting": return <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-md text-xs font-semibold">Menunggu</span>;
+      case "completed": return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs font-semibold">Selesai</span>;
+      case "skipped": return <span className="bg-slate-100 text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-semibold">Dilewat</span>;
+      default: return null;
+    }
+  };
+
+  const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Jakarta" });
+  const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+  const waitMin = current?.created_at ? Math.max(0, Math.round((now.getTime() - new Date(current.created_at).getTime()) / 60000)) : null;
+
+  /* ---------- RENDER ---------- */
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans pb-10">
-      
-      {/* HEADER TOP BAR */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+    <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
+      {/* HEADER */}
+      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Activity className="w-5 h-5 text-white" />
-          </div>
+          <button className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
           <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">Pintar Panel</h1>
-            <p className="text-xs font-medium text-slate-500">Loket 1 • Sistem Pelayanan</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-800">Dashboard Petugas</h1>
+              <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Aktif Melayani
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Loket {loket} • Petugas: Hendra (Admin) • Layanan Perizinan &amp; NPP
+            </p>
           </div>
         </div>
-        <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-red-600 bg-slate-100 hover:bg-red-50 px-4 py-2 rounded-lg transition-all">
-          <LogOut className="w-4 h-4" /> Keluar
-        </Link>
-      </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <p className="text-xs text-slate-500 capitalize">{dateStr}</p>
+            <p className="text-sm font-bold text-slate-800 tabular-nums">{timeStr} WIB</p>
+          </div>
+          <button className="flex items-center gap-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-lg transition">
+            <RefreshCw className="w-4 h-4" /> Pindah Loket
+          </button>
+          <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-lg transition">
+            <LogOut className="w-4 h-4" /> Keluar
+          </Link>
+        </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 space-y-8">
-        
-        {/* STATISTIK CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Total Antrean</p>
-              <h3 className="text-3xl font-black text-slate-800">{totalAntrean}</h3>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Menunggu</p>
-              <h3 className="text-3xl font-black text-slate-800">{menunggu}</h3>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Selesai</p>
-              <h3 className="text-3xl font-black text-slate-800">{selesai}</h3>
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 space-y-6">
+        {/* STAT CARDS */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Stat icon={<Ticket className="w-5 h-5" />} tint="slate" label="Total Tiket" value={queues.length} unit="orang" />
+          <Stat icon={<Activity className="w-5 h-5" />} tint="blue" label="Aktif Dipanggil" value={current?.queue_number || "—"} big />
+          <Stat icon={<Clock className="w-5 h-5" />} tint="amber" label="Sisa Menunggu" value={waiting.length} unit="antrean" />
+          <Stat icon={<CheckCircle className="w-5 h-5" />} tint="emerald" label="Telah Selesai" value={completed.length} unit="selesai" />
+          <Stat icon={<Zap className="w-5 h-5" />} tint="violet" label="Rerata Layanan" value={avgMin ?? "—"} unit="menit" />
         </div>
 
         {/* PANEL PANGGILAN AKTIF */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
-          <div className="flex items-center gap-8">
-            <div>
-              <p className="text-sm font-bold text-slate-400 tracking-wider uppercase mb-2">Sedang Dipanggil</p>
-              <h2 className={`text-6xl font-black tracking-tighter ${currentCalled ? 'text-blue-600' : 'text-slate-300'}`}>
-                {currentCalled ? currentCalled.queue_number : "---"}
-              </h2>
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col lg:flex-row items-center gap-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600" />
+          <div className="flex items-center gap-6 flex-1">
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-6 py-4 text-center">
+              <p className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">Nomor Antrean</p>
+              <p className={`text-4xl font-black leading-tight ${current ? "text-blue-600" : "text-slate-300"}`}>
+                {current?.queue_number || "---"}
+              </p>
+              <p className="text-[10px] text-slate-400 font-semibold">Loket {loket}</p>
             </div>
-            <div className="h-16 w-px bg-slate-200 hidden md:block"></div>
-            <div>
-              <h3 className="text-2xl font-bold text-slate-800">{currentCalled ? currentCalled.customer_name : "Menunggu Antrean"}</h3>
-              <p className="text-slate-500 font-medium">{currentCalled ? `Layanan: ${currentCalled.service_type}` : "Silakan panggil antrean berikutnya"}</p>
+            <div className="min-w-0">
+              {current ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
+                    <span className="bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded">Sedang Dipanggil</span>
+                    {current.created_at && (
+                      <span>• Ambil tiket: {new Date(current.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB {waitMin !== null && `(Menunggu ${waitMin} menit)`}</span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-800 truncate">{current.customer_name}</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5" />
+                    Layanan: {current.service_type} &nbsp;•&nbsp; ID: {current.id?.slice(0, 8).toUpperCase()}
+                  </p>
+                </>
+              ) : (
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-400">Belum ada antrean dipanggil</h2>
+                  <p className="text-sm text-slate-400 mt-1">Tekan “Panggil Berikutnya” untuk memulai.</p>
+                </div>
+              )}
             </div>
           </div>
-          
-          {currentCalled && (
-            <div className="flex gap-3 w-full md:w-auto">
-              <button 
-                onClick={() => updateStatus(currentCalled.id, 'completed', currentCalled.queue_number, currentCalled.customer_name)}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-4 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/30 active:scale-95"
-              >
-                <CheckCircle className="w-5 h-5" /> Selesaikan Layanan
+
+          {current && (
+            <div className="flex items-center gap-2 w-full lg:w-auto">
+              <button onClick={() => suaraPanggilan(current.queue_number, current.customer_name)}
+                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold transition active:scale-95">
+                <Volume2 className="w-4 h-4" /> Panggil
+              </button>
+              <button onClick={() => suaraPanggilan(current.queue_number, current.customer_name)}
+                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-xl font-bold transition active:scale-95">
+                <RefreshCw className="w-4 h-4" /> Panggil Ulang
+              </button>
+              <button onClick={() => updateStatus(current.id, "completed", current.queue_number, current.customer_name)}
+                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold transition active:scale-95">
+                <CheckCircle className="w-4 h-4" /> Selesai Layani
+              </button>
+              <button onClick={() => updateStatus(current.id, "skipped", current.queue_number, current.customer_name)} title="Lewati"
+                className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl transition active:scale-95">
+                <ChevronsRight className="w-4 h-4" />
               </button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* DAFTAR ANTREAN MENUNGGU */}
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-slate-800">Daftar Antrean Menunggu</h2>
-            <span className="bg-blue-100 text-blue-700 py-1 px-3 rounded-full text-sm font-bold">{waitingList.length} Antrean</span>
-          </div>
-          
-          {loading ? (
-             <div className="text-center py-10 text-slate-500">Memuat data...</div>
-          ) : waitingList.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center flex flex-col items-center justify-center">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="w-8 h-8 text-slate-300" />
-              </div>
-              <p className="text-slate-500 font-medium text-lg">Tidak ada antrean yang menunggu.</p>
+        {/* TABEL ANTREAN */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">Daftar Antrean Hari Ini</h2>
+              <p className="text-xs text-slate-500">Kelola urutan antrean pengunjung pada loket pelayanan aktif</p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {waitingList.map((q) => (
-                <div key={q.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-800">{q.customer_name}</h3>
-                      <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-blue-500"></span> {q.service_type}
-                      </p>
-                    </div>
-                    <div className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg font-black text-lg">
-                      {q.queue_number}
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => updateStatus(q.id, 'called', q.queue_number, q.customer_name)}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white py-3 rounded-xl font-bold transition-all active:scale-95"
-                  >
-                    <Volume2 className="w-5 h-5" /> Panggil ke Loket
-                  </button>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {([["all", "Semua"], ["waiting", "Menunggu"], ["completed", "Selesai"], ["skipped", "Dilewat"]] as const).map(([k, label]) => (
+                <button key={k} onClick={() => { setFilter(k as any); setPage(0); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${filter === k ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                  {label} ({counts[k as keyof typeof counts]})
+                </button>
               ))}
             </div>
-          )}
-        </div>
+          </div>
 
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
+                placeholder="Cari nama pengunjung atau nomor tiket..."
+                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+            </div>
+            <button onClick={callNext} disabled={!waiting.length}
+              className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95">
+              <Volume2 className="w-4 h-4" /> Panggil Berikutnya ({waiting[0]?.queue_number || "—"})
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">No. Tiket</th>
+                  <th className="text-left px-4 py-3 font-semibold">Nama Pengunjung</th>
+                  <th className="text-left px-4 py-3 font-semibold">Layanan</th>
+                  <th className="text-left px-4 py-3 font-semibold">Waktu Ambil</th>
+                  <th className="text-left px-4 py-3 font-semibold">Status</th>
+                  <th className="text-right px-4 py-3 font-semibold">Aksi Petugas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Memuat data...</td></tr>
+                ) : paged.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Tidak ada data.</td></tr>
+                ) : paged.map(q => (
+                  <tr key={q.id} className="hover:bg-slate-50/60 transition">
+                    <td className="px-4 py-3"><span className="bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-md">{q.queue_number}</span></td>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-800">{q.customer_name}</p>
+                      <p className="text-xs text-slate-400">NIK: {maskNik(q.nik)}</p>
+                    </td>
+                    <td className="px-4 py-3"><span className={`border px-2.5 py-1 rounded-md text-xs font-semibold ${serviceBadge(q.service_type)}`}>{q.service_type}</span></td>
+                    <td className="px-4 py-3 text-slate-600 tabular-nums">{q.created_at ? new Date(q.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) : "—"} WIB</td>
+                    <td className="px-4 py-3">{statusBadge(q)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {q.status === "called" && (
+                        <button onClick={() => suaraPanggilan(q.queue_number, q.customer_name)} className="inline-flex items-center gap-1.5 text-slate-600 hover:text-blue-600 font-semibold text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition"><Volume2 className="w-3.5 h-3.5" />Panggil Ulang</button>
+                      )}
+                      {(q.status === "waiting" || q.status === "skipped") && (
+                        <button onClick={() => updateStatus(q.id, "called", q.queue_number, q.customer_name)} className="inline-flex items-center gap-1.5 text-blue-600 hover:text-white font-semibold text-xs border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-600 transition"><Volume2 className="w-3.5 h-3.5" />Panggil</button>
+                      )}
+                      {q.status === "completed" && <span className="text-xs text-slate-400">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between mt-4 text-xs text-slate-500">
+            <span>Menampilkan {visible.length === 0 ? 0 : safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, visible.length)} dari {visible.length} antrean</span>
+            <div className="flex gap-2">
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={safePage === 0} className="flex items-center gap-1 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 transition"><ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya</button>
+              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={safePage >= totalPages - 1} className="flex items-center gap-1 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 transition">Selanjutnya <ChevronRight className="w-3.5 h-3.5" /></button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- STAT CARD ---------- */
+function Stat({ icon, tint, label, value, unit, big }: any) {
+  const map: any = {
+    slate: "bg-slate-50 text-slate-600", blue: "bg-blue-50 text-blue-600",
+    amber: "bg-amber-50 text-amber-600", emerald: "bg-emerald-50 text-emerald-600",
+    violet: "bg-violet-50 text-violet-600",
+  };
+  return (
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${map[tint]}`}>{icon}</div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium text-slate-500 truncate">{label}</p>
+        <p className={`font-black text-slate-800 leading-tight ${big ? "text-xl" : "text-2xl"}`}>
+          {value} {unit && !big && <span className="text-[11px] font-medium text-slate-400">{unit}</span>}
+        </p>
       </div>
     </div>
   );
