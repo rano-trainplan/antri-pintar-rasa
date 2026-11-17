@@ -14,16 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      feedbacks: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          queue_id: string
+          rating: number
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          queue_id: string
+          rating: number
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          queue_id?: string
+          rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedbacks_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: true
+            referencedRelation: "queues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      queue_counters: {
+        Row: {
+          last_number: number
+          queue_day: string
+          service_type: string
+        }
+        Insert: {
+          last_number?: number
+          queue_day: string
+          service_type: string
+        }
+        Update: {
+          last_number?: number
+          queue_day?: string
+          service_type?: string
+        }
+        Relationships: []
+      }
+      queues: {
+        Row: {
+          called_at: string | null
+          completed_at: string | null
+          created_at: string
+          customer_id: string
+          customer_name: string
+          id: string
+          queue_day: string
+          queue_number: string
+          service_type: string
+          status: string
+        }
+        Insert: {
+          called_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          customer_id: string
+          customer_name: string
+          id?: string
+          queue_day?: string
+          queue_number: string
+          service_type: string
+          status?: string
+        }
+        Update: {
+          called_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string
+          customer_name?: string
+          id?: string
+          queue_day?: string
+          queue_number?: string
+          service_type?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_queue_completed: { Args: { _queue_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "staff" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +263,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["staff", "admin"],
+    },
   },
 } as const
