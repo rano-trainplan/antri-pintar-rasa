@@ -153,7 +153,7 @@ function Index() {
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white appearance-none"
               >
                 <option value="">-- Pilih Layanan --</option>
-                <option value="NPP">NPP (Nomor Pokok Pegawai)</option>
+                <option value="NPWP">NPWP (Nomor Pokok Wajib Pajak)</option>
                 <option value="BP">BP (Berkas Pensiun)</option>
                 <option value="HR">HR (Human Resources)</option>
                 <option value="BPJS">BPJS Kesehatan</option>
