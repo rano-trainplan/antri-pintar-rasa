@@ -1,186 +1,362 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { QrCode, Ticket, ChevronRight, User, CreditCard, Phone } from "lucide-react";
-import { useState } from "react";
-import { supabase } from "../integrations/supabase/client"; // Sesuaikan path jika berbeda
+import {
+  Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2,
+  Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../integrations/supabase/client";
 
-export const Route = createFileRoute("/")({
-  component: Index,
-});
+export const Route = createFileRoute("/")({ component: Index });
+
+const SERVICES = [
+  { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "indigo" },
+  { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "sky" },
+  { value: "HR", label: "HR", desc: "Human Resources", color: "violet" },
+  { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "emerald" },
+];
 
 function Index() {
   const [loading, setLoading] = useState(false);
   const [ticket, setTicket] = useState<any>(null);
-  
-  // State form
+  const [position, setPosition] = useState<number | null>(null);
+
   const [nama, setNama] = useState("");
   const [nik, setNik] = useState("");
   const [kontak, setKontak] = useState("");
   const [layanan, setLayanan] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleAmbilAntrean = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nama || !nik || !layanan) return alert("Mohon lengkapi data!");
-    
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!nama.trim()) e.nama = "Nama wajib diisi";
+    if (!nik.trim()) e.nik = "NIK / ID wajib diisi";
+    if (!layanan) e.layanan = "Pilih layanan terlebih dahulu";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleAmbilAntrean = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!validate()) return;
     setLoading(true);
-    
-    // Generate nomor antrean simple (contoh: A-001)
+
+    // estimasi posisi = jumlah antrean waiting saat ini
+    const { count } = await supabase
+      .from("queues")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "waiting");
+
     const randomNum = Math.floor(Math.random() * 999) + 1;
-    const noAntrean = `A-${String(randomNum).padStart(3, '0')}`;
+    const noAntrean = `A-${String(randomNum).padStart(3, "0")}`;
 
     const { data, error } = await supabase
       .from("queues")
-      .insert([
-        {
-          queue_number: noAntrean,
-          customer_name: nama,
-          customer_id: nik,
-          contact: kontak,
-          service_type: layanan,
-          status: "waiting",
-        },
-      ])
-      .select()
-      .single();
+      .insert([{
+        queue_number: noAntrean,
+        customer_name: nama,
+        customer_id: nik,
+        contact: kontak,
+        service_type: layanan,
+        status: "waiting",
+      }])
+      .select().single();
 
     setLoading(false);
-
     if (error) {
-      alert("Gagal mengambil antrean: " + error.message);
+      setErrors({ form: "Gagal mengambil antrean: " + error.message });
     } else {
+      setPosition((count ?? 0) + 1);
       setTicket(data);
     }
   };
 
-  // Tampilan jika tiket sudah didapat
-  if (ticket) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden text-center p-8">
-          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Ticket className="w-10 h-10" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Antrean Berhasil Diambil!</h2>
-          <p className="text-slate-500 mb-8">Silakan menunggu nomor Anda dipanggil.</p>
-          
-          <div className="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100">
-            <p className="text-sm text-slate-500 mb-1">Nomor Antrean Anda</p>
-            <h1 className="text-6xl font-black text-blue-600 tracking-tighter">{ticket.queue_number}</h1>
-            <p className="mt-4 text-sm font-medium text-slate-700">{ticket.customer_name}</p>
-            <p className="text-sm text-slate-500">Layanan: {ticket.service_type}</p>
-          </div>
+  const reset = () => {
+    setTicket(null); setNama(""); setNik(""); setKontak(""); setLayanan("");
+    setErrors({}); setPosition(null);
+  };
 
-          <Link to="/" onClick={() => setTicket(null)} className="text-sm font-medium text-blue-600 hover:underline">
-            Kembali ke Beranda
+  return (
+    <div className="relative min-h-screen bg-[#F4F6FB] flex items-center justify-center p-4 overflow-hidden">
+      <Backdrop />
+      <Keyframes />
+
+      <div className="relative w-full max-w-[420px]">
+        {ticket ? (
+          <TicketCard ticket={ticket} position={position} onReset={reset} />
+        ) : (
+          <FormCard
+            {...{ nama, setNama, nik, setNik, kontak, setKontak, layanan, setLayanan,
+              errors, loading, onSubmit: handleAmbilAntrean }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== BACKDROP ===================== */
+function Backdrop() {
+  return (
+    <div className="absolute inset-0 -z-0 pointer-events-none">
+      <div className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(#e6eaf3 1px, transparent 1px), linear-gradient(90deg, #e6eaf3 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
+          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 85%)",
+          WebkitMaskImage: "radial-gradient(ellipse at center, black 40%, transparent 85%)",
+        }}
+      />
+      <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-indigo-300/40 blur-3xl" />
+      <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-cyan-300/40 blur-3xl" />
+    </div>
+  );
+}
+
+/* ===================== FORM CARD ===================== */
+function FormCard({ nama, setNama, nik, setNik, kontak, setKontak, layanan, setLayanan, errors, loading, onSubmit }: any) {
+  return (
+    <div className="animate-[fadeUp_.5s_ease] rounded-[28px] bg-white/80 backdrop-blur-xl border border-white shadow-[0_20px_60px_-20px_rgba(30,41,59,.25)] overflow-hidden">
+      {/* brand */}
+      <div className="relative px-7 pt-7 pb-6 text-center">
+        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-indigo-50/80 to-transparent -z-0" />
+        <div className="relative mx-auto mb-3 h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-500 shadow-lg shadow-indigo-500/30 flex items-center justify-center">
+          <Ticket className="h-7 w-7 text-white" />
+          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+        </div>
+        <h1 className="relative text-xl font-extrabold tracking-tight text-slate-800">Antri Pintar</h1>
+        <p className="relative mt-1 text-[13px] text-slate-500">Sistem Pelayanan Loket Cepat &amp; Modern</p>
+      </div>
+
+      <div className="px-6 pb-6">
+        <div className="mb-5 rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+          <h2 className="text-[15px] font-bold text-slate-800">Ambil Antrean Anda</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Isi data diri untuk mendapatkan nomor antrean</p>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <Field label="Nama Lengkap" icon={<User className="h-4 w-4" />} error={errors.nama}>
+            <input value={nama} onChange={(e: any) => setNama(e.target.value)} placeholder="Masukkan nama lengkap"
+              className="w-full bg-transparent outline-none text-[15px] text-slate-800 placeholder:text-slate-400" />
+          </Field>
+
+          <Field label="NIK / Nomor ID" icon={<CreditCard className="h-4 w-4" />} error={errors.nik}>
+            <input value={nik} onChange={(e: any) => setNik(e.target.value)} placeholder="Masukkan NIK atau ID"
+              className="w-full bg-transparent outline-none text-[15px] text-slate-800 placeholder:text-slate-400" />
+          </Field>
+
+          <Field label="Nomor Kontak" icon={<Phone className="h-4 w-4" />} optional>
+            <input type="tel" value={kontak} onChange={(e: any) => setKontak(e.target.value)} placeholder="Contoh: 08123456789"
+              className="w-full bg-transparent outline-none text-[15px] text-slate-800 placeholder:text-slate-400" />
+          </Field>
+
+          <ServiceSelect value={layanan} onChange={setLayanan} error={errors.layanan} />
+
+          {errors.form && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{errors.form}</p>
+          )}
+
+          <button type="submit" disabled={loading}
+            className="group relative w-full mt-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-3.5 text-white font-bold text-[15px] shadow-lg shadow-indigo-500/30 transition-all hover:shadow-indigo-500/40 hover:brightness-110 active:scale-[.98] disabled:opacity-60 disabled:active:scale-100">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Memproses…</span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <Sparkles className="h-5 w-5" /> Ambil Nomor Antrean
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-5 border-t border-slate-100 pt-4 text-center">
+          <Link to="/petugas"
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-indigo-600 transition-colors">
+            <ShieldCheck className="h-4 w-4" /> Masuk sebagai Petugas
+            <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+/* ===================== FIELD ===================== */
+function Field({ label, icon, error, optional, children }: any) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <label className="text-[12px] font-semibold uppercase tracking-wide text-slate-500">{label}</label>
+        {optional && <span className="text-[11px] text-slate-400">opsional</span>}
+      </div>
+      <div className={`flex items-center gap-3 rounded-xl border bg-white px-3.5 py-3 transition-all
+        ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100"}`}>
+        <span className="text-slate-400">{icon}</span>
+        {children}
+      </div>
+      {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+/* ===================== CUSTOM SELECT ===================== */
+function ServiceSelect({ value, onChange, error }: any) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = SERVICES.find(s => s.value === value);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden relative">
-        {/* Header Section */}
-        <div className="bg-gradient-to-br from-blue-600 to-teal-500 p-8 text-center text-white relative">
-          <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/30">
-            <Ticket className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Antri Pintar</h1>
-          <p className="text-blue-100 mt-2 text-sm">Sistem Pelayanan Loket Cepat & Modern</p>
-        </div>
+    <div ref={ref} className="relative">
+      <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-slate-500">Pilih Layanan</label>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className={`flex w-full items-center gap-3 rounded-xl border bg-white px-3.5 py-3 text-left transition-all
+          ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200 hover:border-indigo-300"}
+          ${open ? "border-indigo-400 ring-2 ring-indigo-100" : ""}`}>
+        <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
+        <span className={`flex-1 text-[15px] ${selected ? "text-slate-800" : "text-slate-400"}`}>
+          {selected ? selected.label : "-- Pilih Layanan --"}
+        </span>
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
 
-        {/* Form Section */}
-        <div className="p-6 space-y-5">
-          <div className="text-center mb-6">
-            <h2 className="text-lg font-semibold text-slate-800">Ambil Antrean Anda</h2>
-            <p className="text-sm text-slate-500">Isi data diri untuk mendapatkan nomor antrean</p>
-          </div>
-
-          <form onSubmit={handleAmbilAntrean} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Lengkap</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  value={nama}
-                  onChange={(e) => setNama(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="Masukkan nama lengkap"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">NIK / Nomor ID</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <CreditCard className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  value={nik}
-                  onChange={(e) => setNik(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="Masukkan NIK atau ID"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Nomor Kontak</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="tel"
-                  value={kontak}
-                  onChange={(e) => setKontak(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="Contoh: 08123456789"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Pilih Layanan</label>
-              <select
-                value={layanan}
-                onChange={(e) => setLayanan(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white appearance-none"
-              >
-                <option value="">-- Pilih Layanan --</option>
-                <option value="NPWP">NPWP (Nomor Pokok Wajib Pajak)</option>
-                <option value="BP">BP (Berkas Pensiun)</option>
-                <option value="HR">HR (Human Resources)</option>
-                <option value="BPJS">BPJS Kesehatan</option>
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 px-4 rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-            >
-              {loading ? "Memproses..." : (
-                <>
-                  <QrCode className="w-5 h-5" />
-                  Ambil Nomor Antrean
-                </>
-              )}
+      {open && (
+        <div className="absolute z-20 mt-2 w-full origin-top rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-200/60 animate-[pop_.18s_ease]">
+          {SERVICES.map(s => (
+            <button key={s.value} type="button" onClick={() => { onChange(s.value); setOpen(false); }}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors
+                ${value === s.value ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
+              <span className={`h-2.5 w-2.5 rounded-full bg-${s.color}-500`} />
+              <span className="flex-1">
+                <span className="block text-[14px] font-semibold text-slate-800">{s.label}</span>
+                <span className="block text-[11px] text-slate-500">{s.desc}</span>
+              </span>
+              {value === s.value && <Check className="h-4 w-4 text-indigo-600" />}
             </button>
-          </form>
+          ))}
+        </div>
+      )}
+      {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
 
-          <div className="text-center mt-6">
-            <Link to="/petugas" className="text-sm font-medium text-slate-500 hover:text-blue-600 flex items-center justify-center gap-1 transition-colors">
-              Masuk sebagai Petugas <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
+/* ===================== TICKET CARD ===================== */
+function TicketCard({ ticket, position, onReset }: any) {
+  const svc = SERVICES.find(s => s.value === ticket.service_type);
+  const time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="animate-[fadeUp_.5s_ease] rounded-[28px] bg-white shadow-[0_24px_70px_-24px_rgba(30,41,59,.3)] overflow-hidden">
+      {/* success header */}
+      <div className="relative px-7 pt-8 pb-6 text-center bg-gradient-to-b from-emerald-50/70 to-white">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30">
+          <svg viewBox="0 0 52 52" className="h-9 w-9">
+            <circle cx="26" cy="26" r="24" fill="none" stroke="white" strokeWidth="3"
+              className="animate-[draw_.6s_ease_.1s_both]" />
+            <path fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
+              d="M16 27l7 7 14-15" className="animate-[draw_.5s_ease_.5s_both]" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-extrabold text-slate-800">Antrean Berhasil Diambil!</h2>
+        <p className="text-[13px] text-slate-500 mt-1">Silakan menunggu nomor Anda dipanggil</p>
+      </div>
+
+      {/* number */}
+      <div className="px-7">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 py-5 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Nomor Antrean</p>
+          <p className="mt-1 bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-6xl font-black tracking-tighter text-transparent">
+            {ticket.queue_number}
+          </p>
         </div>
       </div>
+
+      {/* perforation */}
+      <div className="relative my-6 h-px border-t-2 border-dashed border-slate-200 mx-7">
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-3 text-[10px] font-bold tracking-widest text-slate-300">TIKET</span>
+      </div>
+
+      {/* details + qr */}
+      <div className="px-7 flex items-center justify-between gap-4">
+        <div className="space-y-2 text-[13px]">
+          <Row icon={<User className="h-3.5 w-3.5" />} label="Nama" value={ticket.customer_name} />
+          <Row icon={<MapPin className="h-3.5 w-3.5" />} label="Layanan" value={svc ? `${svc.label} — ${svc.desc}` : ticket.service_type} />
+          <Row icon={<Clock className="h-3.5 w-3.5" />} label="Waktu Ambil" value={`${time} WIB`} />
+          {position != null && (
+            <Row icon={<Sparkles className="h-3.5 w-3.5" />} label="Perkiraan Posisi" value={`Antrean ke-${position}`} accent />
+          )}
+        </div>
+        <QrVisual seed={ticket.queue_number} />
+      </div>
+
+      <p className="px-7 mt-5 text-center text-[11px] text-slate-400">Tunjukkan kode ini saat dipanggil di loket.</p>
+
+      {/* action */}
+      <div className="px-6 pb-6 pt-5">
+        <button onClick={onReset}
+          className="w-full rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 text-[15px] transition-all active:scale-[.98] flex items-center justify-center gap-2">
+          <X className="h-4 w-4" /> Selesai / Antrean Baru
+        </button>
+      </div>
     </div>
+  );
+}
+
+function Row({ icon, label, value, accent }: any) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-slate-400">{icon}</span>
+      <span className="text-slate-400">{label}:</span>
+      <span className={`font-semibold ${accent ? "text-indigo-600" : "text-slate-700"}`}>{value}</span>
+    </div>
+  );
+}
+
+/* QR deterministik tanpa library */
+function QrVisual({ seed }: { seed: string }) {
+  const size = 11;
+  const cells: boolean[][] = [];
+  let h = 2166136261;
+  for (let y = 0; y < size; y++) {
+    const row: boolean[] = [];
+    for (let x = 0; x < size; x++) {
+      h ^= (x * 73856093) ^ (y * 19349663) ^ (seed.charCodeAt((x + y) % seed.length) || 7);
+      h = Math.imul(h, 16777619);
+      row.push(((h >>> 0) % 5) < 2);
+    }
+    cells.push(row);
+  }
+  const finder = (ox: number, oy: number) => {
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++)
+      cells[oy + y][ox + x] = x === 1 && y === 1 ? true : (x === 0 || x === 2 || y === 0 || y === 2);
+  };
+  finder(0, 0); finder(size - 3, 0); finder(0, size - 3);
+
+  return (
+    <div className="shrink-0 rounded-xl border border-slate-100 bg-white p-2 shadow-sm">
+      <div className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${size}, 6px)` }}>
+        {cells.flat().map((on, i) => (
+          <span key={i} className={`h-1.5 w-1.5 rounded-[1px] ${on ? "bg-slate-800" : "bg-transparent"}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ===================== KEYFRAMES ===================== */
+function Keyframes() {
+  return (
+    <style>{`
+      @keyframes fadeUp { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
+      @keyframes pop { from { opacity:0; transform:scale(.96) translateY(-4px) } to { opacity:1; transform:scale(1) translateY(0) } }
+      @keyframes draw { to { stroke-dashoffset:0 } }
+      circle[class*="draw"], path[class*="draw"] { stroke-dasharray:120; stroke-dashoffset:120 }
+    `}</style>
   );
 }
