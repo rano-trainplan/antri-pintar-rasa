@@ -3,6 +3,7 @@ import { Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2, Clock, Ma
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
+import FeedbackForm from "../components/FeedbackForm";
 
 export const Route = createFileRoute("/")({ component: Index });
 
@@ -19,6 +20,7 @@ function Index() {
   const [position, setPosition] = useState<number | null>(null);
   const [form, setForm] = useState({ nama: "", nik: "", kontak: "", layanan: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [hasFeedback, setHasFeedback] = useState(false);
 
   // 1. RESTORE TIKET SAAT REFRESH
   useEffect(() => {
@@ -96,8 +98,23 @@ function Index() {
       </div>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@keyframes draw{to{stroke-dashoffset:0}}circle[class*="draw"],path[class*="draw"]{stroke-dasharray:120;stroke-dashoffset:120}`}</style>
 
-      <div className="relative w-full max-w-[420px]">
-        {ticket ? <TicketCard ticket={ticket} position={position} onReset={reset} /> : <FormCard form={form} updateForm={updateForm} errors={errors} loading={loading} onSubmit={handleSubmit} />}
+           <div className="relative w-full max-w-[420px] space-y-6">
+        {ticket ? (
+          <>
+            <TicketCard ticket={ticket} position={position} onReset={reset} />
+            {ticket.status === 'completed' && !hasFeedback && (
+              <FeedbackForm 
+                queueId={ticket.id} 
+                onSuccess={() => { 
+                  setHasFeedback(true); 
+                  alert("Terima kasih atas penilaian Anda!"); 
+                }} 
+              />
+            )}
+          </>
+        ) : (
+          <FormCard form={form} updateForm={updateForm} errors={errors} loading={loading} onSubmit={handleSubmit} />
+        )}
       </div>
     </div>
   );
