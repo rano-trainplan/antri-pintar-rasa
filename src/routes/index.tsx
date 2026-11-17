@@ -1,3 +1,18 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2, Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../integrations/supabase/client";
+
+export const Route = createFileRoute("/")({ component: Index });
+
+const SERVICES = [
+  { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
+  { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "bg-sky-500" },
+  { value: "HR", label: "HR", desc: "Human Resources", color: "bg-violet-500" },
+  { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "bg-emerald-500" },
+];
+
 function Index() {
   const [loading, setLoading] = useState(false);
   const [ticket, setTicket] = useState<any>(null);
@@ -5,9 +20,7 @@ function Index() {
   const [form, setForm] = useState({ nama: "", nik: "", kontak: "", layanan: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ==========================================
-  // 1. RESTORE TIKET SAAT HALAMAN DI-REFRESH
-  // ==========================================
+  // 1. RESTORE TIKET SAAT REFRESH
   useEffect(() => {
     const saved = localStorage.getItem("current_ticket");
     if (saved) {
@@ -15,15 +28,13 @@ function Index() {
         const parsed = JSON.parse(saved);
         setTicket(parsed.ticket);
         setPosition(parsed.position);
-      } catch (e) {
+      } catch {
         localStorage.removeItem("current_ticket");
       }
     }
   }, []);
 
-  // ==========================================
-  // 2. SIMPAN TIKET KE LOCALSTORAGE SAAT DAPAT
-  // ==========================================
+  // 2. SIMPAN TIKET KE LOCALSTORAGE
   useEffect(() => {
     if (ticket) {
       localStorage.setItem("current_ticket", JSON.stringify({ ticket, position }));
@@ -160,19 +171,20 @@ function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v
 
   useEffect(() => {
     if (!isOpen) return;
+    const close = () => setIsOpen(false);
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       const isBtn = btnRef.current?.contains(target);
       const isDropdown = dropdownRef.current?.contains(target);
-      if (!isBtn && !isDropdown) setIsOpen(false);
+      if (!isBtn && !isDropdown) close();
     };
     document.addEventListener("mousedown", handler);
-    window.addEventListener("scroll", () => setIsOpen(false), true);
-    window.addEventListener("resize", () => setIsOpen(false));
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
     return () => {
       document.removeEventListener("mousedown", handler);
-      window.removeEventListener("scroll", () => setIsOpen(false), true);
-      window.removeEventListener("resize", () => setIsOpen(false));
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
     };
   }, [isOpen]);
 
