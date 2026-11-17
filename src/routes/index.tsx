@@ -59,7 +59,7 @@ function Index() {
     setLoading(true);
     
     // 1. Hitung yang waiting dulu untuk estimasi posisi
-    const { count } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting");
+    const { count } = await supabase.from("public_queue_view").select("id", { count: "exact", head: true }).eq("status", "waiting");
 
     // 2. Ambil nomor antrean berurutan dari database (anti-dobel)
     const { data: noAntrean, error: rpcError } = await supabase.rpc('get_next_queue_number');
@@ -71,7 +71,7 @@ function Index() {
     }
 
     // 3. Insert ke database
-    const { data, error } = await supabase.from("queues").insert([{
+    const { data, error } = await supabase.from("public_queue_view").insert([{
       queue_number: noAntrean, 
       customer_name: form.nama, 
       customer_id: form.nik,
