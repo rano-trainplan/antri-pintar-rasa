@@ -56,9 +56,12 @@ function Index() {
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
-       setLoading(true);
+    setLoading(true);
     
-    // GANTI BAGIAN INI:
+    // 1. Hitung yang waiting dulu untuk estimasi posisi
+    const { count } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting");
+
+    // 2. Ambil nomor antrean berurutan dari database (anti-dobel)
     const { data: noAntrean, error: rpcError } = await supabase.rpc('get_next_queue_number');
     
     if (rpcError || !noAntrean) {
@@ -66,8 +69,8 @@ function Index() {
       setErrors({ form: "Gagal mengambil nomor antrean. Coba lagi." });
       return;
     }
-    // SAMPAI SINI
 
+    // 3. Insert ke database
     const { data, error } = await supabase.from("queues").insert([{
       queue_number: noAntrean, 
       customer_name: form.nama, 
@@ -78,12 +81,17 @@ function Index() {
     }]).select().single();
 
     setLoading(false);
-    if (error) setErrors({ form: error.message });
-    else { setPosition((count ?? 0) + 1); setTicket(data); }
+    if (error) {
+      setErrors({ form: error.message });
+    } else { 
+      setPosition((count ?? 0) + 1); 
+      setTicket(data); 
+    }
   };
 
   const reset = () => { 
     setTicket(null); 
+    setHasFeedback(false); // Reset state feedback
     setForm({ nama: "", nik: "", kontak: "", layanan: "" }); 
     setErrors({}); 
     setPosition(null); 
@@ -98,7 +106,7 @@ function Index() {
       </div>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@keyframes draw{to{stroke-dashoffset:0}}circle[class*="draw"],path[class*="draw"]{stroke-dasharray:120;stroke-dashoffset:120}`}</style>
 
-           <div className="relative w-full max-w-[420px] space-y-6">
+      <div className="relative w-full max-w-[420px] space-y-6">
         {ticket ? (
           <>
             <TicketCard ticket={ticket} position={position} onReset={reset} />
