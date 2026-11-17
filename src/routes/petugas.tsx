@@ -37,25 +37,23 @@ function Petugas() {
     };
   }, []);
 
-  // FUNGSI SUARA PANGGILAN
-   const updateStatus = async (id: string, newStatus: string, nomor: string, nama: string) => {
-    const { error } = await supabase
-      .from("queues")
-      .update({ status: newStatus })
-      .eq("id", id);
-
-    if (error) {
-      alert("Gagal update status: " + error.message);
+  // 1. FUNGSI SUARA PANGGILAN LENGKAP
+  const suaraPanggilan = (nomorAntrean: string, nama: string, loket: string = "1") => {
+    if ('speechSynthesis' in window) {
+      const teks = `Nomor antrean ${nomorAntrean.replace('-', ' ').replace('0', 'nol ')}, atas nama ${nama}, silakan menuju ke loket ${loket}.`;
+      const speech = new SpeechSynthesisUtterance(teks);
+      speech.lang = 'id-ID'; 
+      speech.rate = 0.85; 
+      
+      window.speechSynthesis.cancel(); 
+      window.speechSynthesis.speak(speech);
     } else {
-      // Jika statusnya 'called', bunyikan suara lengkap dengan nama dan loket
-      if (newStatus === 'called') {
-        suaraPanggilan(nomor, nama, "1"); // "1" adalah nomor loket, bisa diubah
-      }
-      fetchQueues();
+      alert("Browser Anda tidak mendukung fitur suara.");
     }
   };
 
-  const updateStatus = async (id: string, newStatus: string, nomor: string) => {
+  // 2. FUNGSI UPDATE STATUS (Hanya ada satu, sudah menerima parameter nama)
+  const updateStatus = async (id: string, newStatus: string, nomor: string, nama: string) => {
     const { error } = await supabase
       .from("queues")
       .update({ status: newStatus })
@@ -64,9 +62,8 @@ function Petugas() {
     if (error) {
       alert("Gagal update status: " + error.message);
     } else {
-      // Jika statusnya 'called', bunyikan suara
       if (newStatus === 'called') {
-        suaraPanggilan(nomor);
+        suaraPanggilan(nomor, nama, "1"); 
       }
       fetchQueues();
     }
@@ -133,7 +130,7 @@ function Petugas() {
 
                   {q.status === 'called' && (
                     <button 
-                      onClick={() => updateStatus(q.id, 'completed', q.queue_number)}
+                      onClick={() => updateStatus(q.id, 'completed', q.queue_number, q.customer_name)}
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-green-500/30"
                     >
                       <CheckCircle className="w-4 h-4" /> Selesai
