@@ -3,6 +3,7 @@ import {
   Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2,
   Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
 
@@ -14,6 +15,14 @@ const SERVICES = [
   { value: "HR", label: "HR", desc: "Human Resources", color: "violet" },
   { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "emerald" },
 ];
+
+// Map warna agar aman dari Tailwind purge
+const COLOR_MAP: Record<string, string> = {
+  indigo: "bg-indigo-500",
+  sky: "bg-sky-500",
+  violet: "bg-violet-500",
+  emerald: "bg-emerald-500",
+};
 
 function Index() {
   const [loading, setLoading] = useState(false);
@@ -40,7 +49,6 @@ function Index() {
     if (!validate()) return;
     setLoading(true);
 
-    // estimasi posisi = jumlah antrean waiting saat ini
     const { count } = await supabase
       .from("queues")
       .select("id", { count: "exact", head: true })
@@ -199,48 +207,102 @@ function Field({ label, icon, error, optional, children }: any) {
   );
 }
 
-/* ===================== CUSTOM SELECT ===================== */
-function ServiceSelect({ value, onChange, error }: any) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = SERVICES.find(s => s.value === value);
+/* ===================== CUSTOM SELECT (PORTAL) ===================== */
+function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const selected = SERVICES.find((s) => s.value === value);
 
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+    if (isOpen && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  const handleClose = () => setIsOpen(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (btnRef.current && !btnRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("scroll", handleClose, true);
+      window.addEventListener("resize", handleClose);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleClose, true);
+      window.removeEventListener("resize", handleClose);
+    };
+  }, [isOpen]);
+
+  const handleSelect = (val: string) => {
+    onChange(val);
+    setIsOpen(false);
+  };
 
   return (
-    <div ref={ref} className="relative">
-      <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-slate-500">Pilih Layanan</label>
-      <button type="button" onClick={() => setOpen(o => !o)}
+    <div className="relative">
+      <label className="mb-1.5 block text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+        Pilih Layanan
+      </label>
+
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
         className={`flex w-full items-center gap-3 rounded-xl border bg-white px-3.5 py-3 text-left transition-all
           ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200 hover:border-indigo-300"}
-          ${open ? "border-indigo-400 ring-2 ring-indigo-100" : ""}`}>
+          ${isOpen ? "border-indigo-400 ring-2 ring-indigo-100" : ""}`}
+      >
         <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
         <span className={`flex-1 text-[15px] ${selected ? "text-slate-800" : "text-slate-400"}`}>
           {selected ? selected.label : "-- Pilih Layanan --"}
         </span>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {open && (
-        <div className="absolute z-20 mt-2 w-full origin-top rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-200/60 animate-[pop_.18s_ease]">
-          {SERVICES.map(s => (
-            <button key={s.value} type="button" onClick={() => { onChange(s.value); setOpen(false); }}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors
-                ${value === s.value ? "bg-indigo-50" : "hover:bg-slate-50"}`}>
-              <span className={`h-2.5 w-2.5 rounded-full bg-${s.color}-500`} />
-              <span className="flex-1">
-                <span className="block text-[14px] font-semibold text-slate-800">{s.label}</span>
-                <span className="block text-[11px] text-slate-500">{s.desc}</span>
-              </span>
-              {value === s.value && <Check className="h-4 w-4 text-indigo-600" />}
-            </button>
-          ))}
-        </div>
-      )}
+      {isOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="z-[9999] origin-top rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-200/60 animate-[pop_.18s_ease]"
+            style={{
+              position: "absolute",
+              top: pos.top,
+              left: pos.left,
+              width: pos.width,
+            }}
+          >
+            {SERVICES.map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => handleSelect(s.value)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors
+                  ${value === s.value ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+              >
+                <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${COLOR_MAP[s.color]}`} />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[14px] font-semibold text-slate-800 truncate">{s.label}</span>
+                  <span className="block text-[11px] text-slate-500 truncate">{s.desc}</span>
+                </span>
+                {value === s.value && <Check className="h-4 w-4 text-indigo-600 shrink-0" />}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
     </div>
   );
@@ -253,7 +315,6 @@ function TicketCard({ ticket, position, onReset }: any) {
 
   return (
     <div className="animate-[fadeUp_.5s_ease] rounded-[28px] bg-white shadow-[0_24px_70px_-24px_rgba(30,41,59,.3)] overflow-hidden">
-      {/* success header */}
       <div className="relative px-7 pt-8 pb-6 text-center bg-gradient-to-b from-emerald-50/70 to-white">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30">
           <svg viewBox="0 0 52 52" className="h-9 w-9">
@@ -267,7 +328,6 @@ function TicketCard({ ticket, position, onReset }: any) {
         <p className="text-[13px] text-slate-500 mt-1">Silakan menunggu nomor Anda dipanggil</p>
       </div>
 
-      {/* number */}
       <div className="px-7">
         <div className="rounded-2xl border border-slate-100 bg-slate-50 py-5 text-center">
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Nomor Antrean</p>
@@ -277,12 +337,10 @@ function TicketCard({ ticket, position, onReset }: any) {
         </div>
       </div>
 
-      {/* perforation */}
       <div className="relative my-6 h-px border-t-2 border-dashed border-slate-200 mx-7">
         <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-3 text-[10px] font-bold tracking-widest text-slate-300">TIKET</span>
       </div>
 
-      {/* details + qr */}
       <div className="px-7 flex items-center justify-between gap-4">
         <div className="space-y-2 text-[13px]">
           <Row icon={<User className="h-3.5 w-3.5" />} label="Nama" value={ticket.customer_name} />
@@ -297,7 +355,6 @@ function TicketCard({ ticket, position, onReset }: any) {
 
       <p className="px-7 mt-5 text-center text-[11px] text-slate-400">Tunjukkan kode ini saat dipanggil di loket.</p>
 
-      {/* action */}
       <div className="px-6 pb-6 pt-5">
         <button onClick={onReset}
           className="w-full rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 text-[15px] transition-all active:scale-[.98] flex items-center justify-center gap-2">
