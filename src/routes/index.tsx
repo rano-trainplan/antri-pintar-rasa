@@ -58,7 +58,7 @@ function Index() {
 
     setLoading(true);
     
-    // 1. Hitung yang waiting dulu untuk estimasi posisi
+    // 1. Hitung yang waiting dulu untuk estimasi posisi (pakai view agar aman dari RLS)
     const { count } = await supabase.from("public_queue_view").select("id", { count: "exact", head: true }).eq("status", "waiting");
 
     // 2. Ambil nomor antrean berurutan dari database (anti-dobel)
@@ -70,8 +70,8 @@ function Index() {
       return;
     }
 
-    // 3. Insert ke database
-    const { data, error } = await supabase.from("public_queue_view").insert([{
+    // 3. Insert ke database (PENTING: insert ke tabel 'queues', BUKAN view)
+    const { data, error } = await supabase.from("queues").insert([{
       queue_number: noAntrean, 
       customer_name: form.nama, 
       customer_id: form.nik,
@@ -91,7 +91,7 @@ function Index() {
 
   const reset = () => { 
     setTicket(null); 
-    setHasFeedback(false); // Reset state feedback
+    setHasFeedback(false);
     setForm({ nama: "", nik: "", kontak: "", layanan: "" }); 
     setErrors({}); 
     setPosition(null); 
