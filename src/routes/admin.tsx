@@ -4,7 +4,7 @@ import { supabase } from "../integrations/supabase/client";
 import { Users, Clock, CheckCircle, Star, LogOut, ArrowLeft, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({ component: Admin });
-
+ 
 function Admin() {
   const navigate = useNavigate();
   const [session, setSession] = useState<any>(null);
