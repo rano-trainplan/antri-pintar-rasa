@@ -34,6 +34,46 @@ function Petugas() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
+  // ==========================================
+  // 1. SESSION GUARD (CEK LOGIN)
+  // ==========================================
+  const [session, setSession] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Jika belum login, tampilkan halaman minta login
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-slate-200 max-w-sm mx-4">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LogOut className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">Akses Terbatas</h2>
+          <p className="text-sm text-slate-500 mt-2 mb-6">
+            Halaman dashboard petugas membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
+          </p>
+          <Link 
+            to="/login" 
+            className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition active:scale-95"
+          >
+            Login Petugas
+          </Link>
+          <Link 
+            to="/" 
+            className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition"
+          >
+            <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const loket = "1"; // TODO: ambil dari session petugas nanti
 
   /* ---------- FETCH + REALTIME ---------- */
@@ -126,11 +166,9 @@ function Petugas() {
   const paged = visible.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   /* ---------- HELPERS UI ---------- */
-  // FIX: Menggunakan customer_id, bukan nik
   const maskNik = (nik?: string | null) =>
     nik && nik.length >= 8 ? `${nik.slice(0, 4)}${"*".repeat(nik.length - 8)}${nik.slice(-4)}` : "—";
 
-  // FIX: Disesuaikan dengan nama layanan di index.tsx
   const serviceBadge = (type: string) => {
     const t = (type || "").toUpperCase();
     if (t.includes("NPWP")) return "bg-indigo-50 text-indigo-700 border-indigo-200";
@@ -172,7 +210,7 @@ function Petugas() {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Loket {loket} • Petugas: Hendra • Layanan Perizinan & NPP
+              Loket {loket} • Petugas: {session.user?.email || "User"} • Layanan Perizinan & NPP
             </p>
           </div>
         </div>
@@ -184,9 +222,15 @@ function Petugas() {
           <button className="flex items-center gap-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-lg transition">
             <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Pindah Loket</span>
           </button>
-          <Link to="/" className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-lg transition">
+          <button 
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/";
+            }} 
+            className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-lg transition"
+          >
             <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Keluar</span>
-          </Link>
+          </button>
         </div>
       </header>
 
