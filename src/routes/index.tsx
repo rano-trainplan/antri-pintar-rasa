@@ -54,14 +54,25 @@ function Index() {
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
-    setLoading(true);
-    const { count } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting");
-    const nextNum = (count ?? 0) + 1;
-const noAntrean = `A-${String(nextNum).padStart(3, "0")}`;
+       setLoading(true);
+    
+    // GANTI BAGIAN INI:
+    const { data: noAntrean, error: rpcError } = await supabase.rpc('get_next_queue_number');
+    
+    if (rpcError || !noAntrean) {
+      setLoading(false);
+      setErrors({ form: "Gagal mengambil nomor antrean. Coba lagi." });
+      return;
+    }
+    // SAMPAI SINI
 
     const { data, error } = await supabase.from("queues").insert([{
-      queue_number: noAntrean, customer_name: form.nama, customer_id: form.nik,
-      contact: form.kontak, service_type: form.layanan, status: "waiting"
+      queue_number: noAntrean, 
+      customer_name: form.nama, 
+      customer_id: form.nik,
+      contact: form.kontak, 
+      service_type: form.layanan, 
+      status: "waiting"
     }]).select().single();
 
     setLoading(false);
