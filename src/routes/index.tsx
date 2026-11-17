@@ -56,7 +56,8 @@ function Index() {
 
     setLoading(true);
     const { count } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting");
-    const noAntrean = `A-${String(Math.floor(Math.random() * 999) + 1).padStart(3, "0")}`;
+    const nextNum = (count ?? 0) + 1;
+const noAntrean = `A-${String(nextNum).padStart(3, "0")}`;
 
     const { data, error } = await supabase.from("queues").insert([{
       queue_number: noAntrean, customer_name: form.nama, customer_id: form.nik,
