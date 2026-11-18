@@ -5,7 +5,6 @@ import { supabase } from "../integrations/supabase/client";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
-/* ===================== WAVE ===================== */
 function Wave() {
   return (
     <svg viewBox="0 0 400 42" preserveAspectRatio="none" className="absolute bottom-[-1px] left-0 w-full h-10 block">
@@ -34,8 +33,7 @@ function Login() {
     if (error) {
       setError("Email atau password salah.");
     } else {
-      // Cek role dari metadata
-      const role = data?.user?.user_metadata?.role || data?.user?.app_metadata?.role;
+      const role = data?.user?.app_metadata?.role;
       if (role === "admin") {
         navigate({ to: "/admin" });
       } else {
@@ -54,7 +52,6 @@ function Login() {
         </Link>
 
         <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-[#4A7C2F]/10 overflow-hidden">
-          {/* HEADER HIJAU SOLID + WAVE */}
           <div className="relative bg-[#4A7C2F] px-7 pt-10 pb-16 text-center overflow-hidden">
             <div className="relative mx-auto mb-3 h-16 w-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center">
               <ShieldCheck className="h-8 w-8 text-white" />
@@ -64,7 +61,6 @@ function Login() {
             <Wave />
           </div>
 
-          {/* BODY */}
           <div className="px-7 pt-3 pb-7">
             <h2 className="text-[22px] leading-tight font-extrabold tracking-tight text-slate-800">
               Welcome back
@@ -74,7 +70,6 @@ function Login() {
             <p className="mt-2 mb-5 text-[13px] text-slate-400">Masukkan email dan password untuk melanjutkan</p>
 
             <form onSubmit={handleLogin} className="space-y-3.5">
-              {/* Email */}
               <div>
                 <label className="mb-1.5 block px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Email</label>
                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all focus-within:border-[#4A7C2F] focus-within:ring-2 focus-within:ring-[#4A7C2F]/20">
@@ -84,7 +79,6 @@ function Login() {
                 </div>
               </div>
 
-              {/* Password */}
               <div>
                 <label className="mb-1.5 block px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Password</label>
                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all focus-within:border-[#4A7C2F] focus-within:ring-2 focus-within:ring-[#4A7C2F]/20">
