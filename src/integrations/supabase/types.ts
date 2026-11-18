@@ -14,21 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      daily_counters: {
-        Row: {
-          current_number: number | null
-          date: string
-        }
-        Insert: {
-          current_number?: number | null
-          date?: string
-        }
-        Update: {
-          current_number?: number | null
-          date?: string
-        }
-        Relationships: []
-      }
       feedbacks: {
         Row: {
           comment: string | null
@@ -186,7 +171,6 @@ export type Database = {
       }
     }
     Functions: {
-      get_next_queue_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -195,6 +179,33 @@ export type Database = {
         Returns: boolean
       }
       is_queue_completed: { Args: { _queue_id: string }; Returns: boolean }
+      submit_queue: {
+        Args: {
+          p_contact: string
+          p_customer_id: string
+          p_customer_name: string
+          p_service_type: string
+        }
+        Returns: {
+          called_at: string | null
+          completed_at: string | null
+          contact: string | null
+          created_at: string | null
+          customer_id: string | null
+          customer_name: string
+          id: string
+          loket: string | null
+          queue_number: string
+          service_type: string
+          status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "queues"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "staff" | "admin"
