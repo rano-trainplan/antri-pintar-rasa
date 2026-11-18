@@ -113,15 +113,13 @@ function Index() {
   const noAntrean = `A-${String(nextNum).padStart(3, "0")}`;
 
   // INSERT tetap ke tabel 'queues' (anon punya hak INSERT di sini)
-  const { data, error } = await supabase.from("queues").insert([{
-    queue_number: noAntrean,
-    customer_name: form.nama,
-    customer_id: form.nik,
-    contact: form.kontak,
-    service_type: form.layanan,
-    status: "waiting",
-  }]).select().single();
-
+ const { data, error } = await supabase.rpc('insert_queue', {
+  p_queue_number: noAntrean,
+  p_customer_name: form.nama,
+  p_customer_id: form.nik,
+  p_contact: form.kontak,
+  p_service_type: form.layanan
+});
   setLoading(false);
   if (error) {
     setErrors({ form: error.message });
