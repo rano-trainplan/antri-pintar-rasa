@@ -26,6 +26,7 @@ type QueueItem = {
 };
 
 const PAGE_SIZE = 5;
+const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
 
 function Wave() {
   return (
@@ -38,6 +39,7 @@ function Wave() {
 function Petugas() {
   const navigate = useNavigate();
   const loket = "1";
+  const today = new Date().toISOString().split("T")[0];
 
   const [session, setSession] = useState<any>(null);
   const [queues, setQueues] = useState<QueueItem[]>([]);
@@ -46,7 +48,8 @@ function Petugas() {
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split("T")[0]); // FASE 2
+  const [filterStart, setFilterStart] = useState(today);
+  const [filterEnd, setFilterEnd] = useState(today);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
@@ -56,8 +59,8 @@ function Petugas() {
 
   const fetchQueues = async () => {
     if (!session) return;
-    const startOfDay = `${filterDate}T00:00:00`;
-    const endOfDay = `${filterDate}T23:59:59`;
+    const startOfDay = `${filterStart}T00:00:00`;
+    const endOfDay = `${filterEnd}T23:59:59`;
 
     const { data } = await supabase
       .from("queues")
@@ -77,7 +80,7 @@ function Petugas() {
       .subscribe();
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => { supabase.removeChannel(ch); clearInterval(t); };
-  }, [session, filterDate]);
+  }, [session, filterStart, filterEnd]);
 
   const suaraPanggilan = (nomor: string, nama: string, lk: string = loket) => {
     if (!("speechSynthesis" in window)) return;
@@ -158,13 +161,13 @@ function Petugas() {
     }
   };
 
-  const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Jakarta" });
-  const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
+  const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: TZ });
+  const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: TZ });
   const waitMin = current?.created_at ? Math.max(0, Math.round((now.getTime() - new Date(current.created_at).getTime()) / 60000)) : null;
 
-  // Format tanggal untuk display
-  const filterDateDisplay = new Date(filterDate).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const isToday = filterDate === new Date().toISOString().split("T")[0];
+  const isTodayRange = filterStart === today && filterEnd === today;
+  const formatTanggal = (iso: string) => new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+  const formatWaktu = (iso: string) => new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 
   if (loading) {
     return (
@@ -226,7 +229,7 @@ function Petugas() {
           <div className="flex items-center gap-2 md:gap-3">
             <div className="text-right hidden sm:block mr-1">
               <p className="text-[11px] text-white/60 capitalize leading-none">{dateStr}</p>
-              <p className="text-sm font-bold text-white tabular-nums mt-1">{timeStr} WIB</p>
+              <p className="text-sm font-bold text-white tabular-nums mt-1">{timeStr} WIT</p>
             </div>
             <button className="flex items-center gap-2 text-[13px] font-semibold text-white bg-white/15 hover:bg-white/25 border border-white/20 px-3.5 py-2.5 rounded-xl transition active:scale-95">
               <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline">Pindah Loket</span>
@@ -311,12 +314,7 @@ function Petugas() {
               <h2 className="text-lg font-extrabold text-slate-800 tracking-tight">Daftar Antrean</h2>
               <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                {isToday ? "Hari ini" : filterDateDisplay}
-                {!isToday && (
-                  <button onClick={() => setFilterDate(new Date().toISOString().split("T")[0])} className="text-[#4A7C2F] font-bold ml-1 hover:underline">
-                    (kembali ke hari ini)
-                  </button>
-                )}
+                {isTodayRange ? "Hari ini" : `${formatTanggal(filterStart)} — ${formatTanggal(filterEnd)}`}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -329,27 +327,53 @@ function Petugas() {
             </div>
           </div>
 
-          {/* FASE 2: Date Filter */}
-          <div className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/10 rounded-2xl p-3 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="flex items-center gap-2 text-[#4A7C2F]">
+          {/* FILTER TANGGAL RENTANG */}
+          <div className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/10 rounded-2xl p-3 mb-4">
+            <div className="flex items-center gap-2 text-[#4A7C2F] mb-2">
               <Calendar className="w-4 h-4" />
-              <span className="text-xs font-bold">Filter Tanggal:</span>
+              <span className="text-xs font-bold">Filter Periode (WIT):</span>
             </div>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => { setFilterDate(e.target.value); setPage(0); }}
-              max={new Date().toISOString().split("T")[0]}
-              className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
-            />
-            {!isToday && (
-              <button
-                onClick={() => setFilterDate(new Date().toISOString().split("T")[0])}
-                className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-3 py-2 rounded-lg transition"
-              >
-                Reset ke Hari Ini
-              </button>
-            )}
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
+              <div className="flex flex-col">
+                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Dari Tanggal</label>
+                <input
+                  type="date"
+                  value={filterStart}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFilterStart(v);
+                    if (v > filterEnd) setFilterEnd(v);
+                    setPage(0);
+                  }}
+                  max={today}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+                />
+              </div>
+              <div className="hidden sm:flex items-center justify-center text-slate-400 font-bold text-sm pt-4">→</div>
+              <div className="flex flex-col">
+                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Sampai Tanggal</label>
+                <input
+                  type="date"
+                  value={filterEnd}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFilterEnd(v);
+                    if (v < filterStart) setFilterStart(v);
+                    setPage(0);
+                  }}
+                  max={today}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+                />
+              </div>
+              {!isTodayRange && (
+                <button
+                  onClick={() => { setFilterStart(today); setFilterEnd(today); setPage(0); }}
+                  className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-3 py-2 rounded-lg transition self-end sm:self-center"
+                >
+                  Reset Hari Ini
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -372,7 +396,7 @@ function Petugas() {
                   <th className="text-left px-4 py-3 font-bold">No. Tiket</th>
                   <th className="text-left px-4 py-3 font-bold">Nama Pengunjung</th>
                   <th className="text-left px-4 py-3 font-bold">Layanan</th>
-                  <th className="text-left px-4 py-3 font-bold">Waktu Ambil</th>
+                  <th className="text-left px-4 py-3 font-bold">Waktu (WIT)</th>
                   <th className="text-left px-4 py-3 font-bold">Status</th>
                   <th className="text-right px-4 py-3 font-bold">Aksi</th>
                 </tr>
@@ -386,7 +410,7 @@ function Petugas() {
                           <Ticket className="w-6 h-6 text-slate-300" />
                         </div>
                         <p className="text-sm font-semibold text-slate-400">Tidak ada data antrean</p>
-                        <p className="text-xs text-slate-400">Coba pilih tanggal lain atau ambil antrean baru.</p>
+                        <p className="text-xs text-slate-400">Coba ubah rentang tanggal atau ambil antrean baru.</p>
                       </div>
                     </td>
                   </tr>
@@ -398,7 +422,7 @@ function Petugas() {
                       <p className="text-xs text-slate-400">ID: {maskNik(q.customer_id)}</p>
                     </td>
                     <td className="px-4 py-3"><span className={`border px-2.5 py-1 rounded-lg text-xs font-bold ${serviceBadge(q.service_type)}`}>{q.service_type}</span></td>
-                    <td className="px-4 py-3 text-slate-600 tabular-nums text-xs">{q.created_at ? new Date(q.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) : "—"} WIB</td>
+                    <td className="px-4 py-3 text-slate-600 tabular-nums text-xs">{q.created_at ? formatWaktu(q.created_at) : "—"} WIT</td>
                     <td className="px-4 py-3">{statusBadge(q)}</td>
                     <td className="px-4 py-3 text-right">
                       {q.status === "called" && (
