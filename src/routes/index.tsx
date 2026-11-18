@@ -164,7 +164,7 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
 
           {/* Tombol ala BiteBox: hijau + panah kanan */}
           <button type="submit" disabled={loading}
-            className="group relative w-full mt-1 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 px-5 py-4 text-white font-bold text-[15px] shadow-lg shadow-emerald-500/30 transition-all hover:brightness-105 active:scale-[.98] disabled:opacity-60 disabled:active:scale-100 flex items-center justify-between">
+            className="group relative w-full mt-1 rounded-2xl bg-[#4A7C2F] hover:bg-[#3d6826] px-5 py-4 text-white font-bold text-[15px] shadow-lg shadow-emerald-500/30 transition-all hover:brightness-105 active:scale-[.98] disabled:opacity-60 disabled:active:scale-100 flex items-center justify-between">
             <span className="flex items-center gap-2">
               {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Memproses…</> : <><Sparkles className="h-5 w-5" /> Ambil Antrean</>}
             </span>
@@ -305,7 +305,7 @@ function TicketCard({ ticket, position, onReset }: any) {
       <div className="px-7">
         <div className="rounded-2xl border border-slate-100 bg-slate-50 py-5 text-center">
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Nomor Antrean</p>
-          <p className="mt-1 bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-6xl font-black tracking-tighter text-transparent">{ticket.queue_number}</p>
+          <p className="mt-1 bg-[#4A7C2F] hover:bg-[#3d6826] bg-clip-text text-6xl font-black tracking-tighter text-transparent">{ticket.queue_number}</p>
         </div>
       </div>
 
