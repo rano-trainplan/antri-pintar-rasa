@@ -1,5 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2, Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X } from "lucide-react";
+import {
+  Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2,
+  Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X, Home,
+  History, Star, Trash2, Calendar, AlertCircle
+} from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "../integrations/supabase/client";
@@ -10,17 +14,12 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "Antri Pintar | Sistem Antrean Loket" },
       { name: "description", content: "Ambil tiket dan pantau antrean layanan loket melalui Antri Pintar." },
-      { property: "og:title", content: "Antri Pintar | Sistem Antrean Loket" },
-      { property: "og:description", content: "Ambil tiket dan pantau antrean layanan loket melalui Antri Pintar." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Index,
 });
 
 const GREEN = "#4A7C2F";
-
 const SERVICES = [
   { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
   { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "bg-sky-500" },
@@ -28,23 +27,44 @@ const SERVICES = [
   { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "bg-emerald-500" },
 ];
 
-/* ===================== WAVE PUTIH ===================== */
+type HistoryItem = {
+  id: string;
+  queue_number: string;
+  customer_name: string;
+  service_type: string;
+  status: string;
+  created_at: string;
+  finishedAt?: string;
+  rated?: boolean;
+};
+
 function Wave() {
   return (
     <svg viewBox="0 0 400 42" preserveAspectRatio="none" className="absolute bottom-[-1px] left-0 w-full h-10 block">
-      <path fill="#ffffff" d="M0,22 C90,44 150,4 220,18 C290,32 340,8 400,22 L400,42 L0,42 Z" />
+      <path fill="#F6F8F5" d="M0,22 C90,44 150,4 220,18 C290,32 340,8 400,22 L400,42 L0,42 Z" />
     </svg>
   );
 }
 
 function Index() {
+  const [activeTab, setActiveTab] = useState<"home" | "riwayat">("home");
   const [loading, setLoading] = useState(false);
   const [ticket, setTicket] = useState<any>(null);
   const [position, setPosition] = useState<number | null>(null);
   const [form, setForm] = useState({ nama: "", nik: "", kontak: "", layanan: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [hasFeedback, setHasFeedback] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
+  // Load history dari localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("queue_history");
+    if (saved) {
+      try { setHistory(JSON.parse(saved)); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Restore tiket aktif saat refresh
   useEffect(() => {
     const saved = localStorage.getItem("current_ticket");
     if (saved) {
@@ -58,6 +78,7 @@ function Index() {
     }
   }, []);
 
+  // Simpan tiket aktif ke localStorage
   useEffect(() => {
     if (ticket) localStorage.setItem("current_ticket", JSON.stringify({ ticket, position }));
     else localStorage.removeItem("current_ticket");
@@ -89,32 +110,115 @@ function Index() {
 
     setLoading(false);
     if (error) setErrors({ form: error.message });
-    else { setPosition((count ?? 0) + 1); setTicket(data); }
+    else { setPosition((count ?? 0) + 1); setTicket(data); setActiveTab("home"); }
+  };
+
+  const saveToHistory = (t: any) => {
+    const newItem: HistoryItem = {
+      id: t.id,
+      queue_number: t.queue_number,
+      customer_name: t.customer_name,
+      service_type: t.service_type,
+      status: t.status,
+      created_at: t.created_at,
+      finishedAt: new Date().toISOString(),
+      rated: hasFeedback,
+    };
+    const updated = [...history, newItem].slice(-30); // max 30 riwayat
+    setHistory(updated);
+    localStorage.setItem("queue_history", JSON.stringify(updated));
   };
 
   const reset = () => {
-    setTicket(null); setHasFeedback(false);
+    if (ticket) saveToHistory(ticket);
+    setTicket(null);
+    setHasFeedback(false);
     setForm({ nama: "", nik: "", kontak: "", layanan: "" });
-    setErrors({}); setPosition(null);
+    setErrors({});
+    setPosition(null);
+  };
+
+  const clearHistory = () => {
+    if (confirm("Hapus semua riwayat antrean?")) {
+      setHistory([]);
+      localStorage.removeItem("queue_history");
+    }
   };
 
   return (
-    <div className="relative min-h-screen bg-[#F6F8F5] flex items-center justify-center p-4 overflow-hidden">
+    <div className="relative min-h-screen bg-[#F6F8F5] flex flex-col overflow-hidden">
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@keyframes draw{to{stroke-dashoffset:0}}circle[class*="draw"],path[class*="draw"]{stroke-dasharray:120;stroke-dashoffset:120}`}</style>
 
-      <div className="relative w-full max-w-[420px] space-y-6">
-        {ticket ? (
-          <>
-            <TicketCard ticket={ticket} position={position} onReset={reset} />
-            {ticket.status === 'completed' && !hasFeedback && (
-              <FeedbackForm queueId={ticket.id} onSuccess={() => { setHasFeedback(true); alert("Terima kasih atas penilaian Anda!"); }} />
-            )}
-          </>
+      {/* CONTENT AREA */}
+      <div className="flex-1 overflow-y-auto pb-24">
+        {activeTab === "home" ? (
+          <div className="flex items-center justify-center p-4 min-h-full">
+            <div className="relative w-full max-w-[420px] space-y-6">
+              {ticket ? (
+                <>
+                  <TicketCard ticket={ticket} position={position} onReset={reset} />
+                  {ticket.status === 'completed' && !hasFeedback && (
+                    <FeedbackForm
+                      queueId={ticket.id}
+                      onSuccess={() => {
+                        setHasFeedback(true);
+                        alert("Terima kasih atas penilaian Anda! ⭐");
+                      }}
+                    />
+                  )}
+                </>
+              ) : (
+                <FormCard form={form} updateForm={updateForm} errors={errors} loading={loading} onSubmit={handleSubmit} />
+              )}
+            </div>
+          </div>
         ) : (
-          <FormCard form={form} updateForm={updateForm} errors={errors} loading={loading} onSubmit={handleSubmit} />
+          <HistoryView history={history} onClear={clearHistory} />
         )}
       </div>
+
+      {/* BOTTOM NAVIGATION */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+        <div className="max-w-md mx-auto flex items-center justify-around px-2 py-2">
+          <NavBtn
+            icon={<Home className="w-5 h-5" />}
+            label="Home"
+            active={activeTab === "home"}
+            onClick={() => setActiveTab("home")}
+          />
+          <NavBtn
+            icon={<History className="w-5 h-5" />}
+            label="Riwayat"
+            badge={history.length > 0 ? history.length : undefined}
+            active={activeTab === "riwayat"}
+            onClick={() => setActiveTab("riwayat")}
+          />
+        </div>
+      </nav>
     </div>
+  );
+}
+
+/* ===================== BOTTOM NAV BTN ===================== */
+function NavBtn({ icon, label, active, onClick, badge }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex flex-col items-center gap-1 px-6 py-2 rounded-xl transition-all active:scale-95 ${
+        active ? "text-[#4A7C2F]" : "text-slate-400 hover:text-slate-600"
+      }`}
+    >
+      {active && <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#4A7C2F]" />}
+      <div className={`relative ${active ? "bg-[#4A7C2F]/10" : ""} p-2 rounded-xl transition`}>
+        {icon}
+        {badge && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#4A7C2F] text-white text-[10px] font-bold flex items-center justify-center px-1">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
+      </div>
+      <span className="text-[11px] font-bold">{label}</span>
+    </button>
   );
 }
 
@@ -122,7 +226,6 @@ function Index() {
 function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
   return (
     <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-[#4A7C2F]/10 overflow-hidden">
-      {/* HEADER HIJAU SOLID + WAVE */}
       <div className="relative bg-[#4A7C2F] px-7 pt-10 pb-16 text-center overflow-hidden">
         <div className="relative mx-auto mb-3 h-16 w-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center">
           <Ticket className="h-8 w-8 text-white" />
@@ -132,7 +235,6 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
         <Wave />
       </div>
 
-      {/* BODY */}
       <div className="px-7 pt-3 pb-7">
         <h2 className="text-[22px] leading-tight font-extrabold tracking-tight text-slate-800">
           Let's get you
@@ -180,7 +282,6 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
   );
 }
 
-/* ===================== INPUT ===================== */
 function Input({ label, icon, error, optional, children }: any) {
   return (
     <div>
@@ -197,7 +298,7 @@ function Input({ label, icon, error, optional, children }: any) {
   );
 }
 
-/* ===================== DROPDOWN SIMPLE & CLEAN ===================== */
+/* ===================== SERVICE SELECT (Mobile-Safe) ===================== */
 function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 280 });
@@ -288,7 +389,6 @@ function TicketCard({ ticket, position, onReset }: any) {
 
   return (
     <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-[#4A7C2F]/10 overflow-hidden">
-      {/* HEADER HIJAU SOLID + WAVE */}
       <div className="relative bg-[#4A7C2F] px-7 pt-10 pb-16 text-center overflow-hidden">
         <div className="relative mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 border border-white/25">
           <svg viewBox="0 0 52 52" className="h-9 w-9">
@@ -369,6 +469,102 @@ function QrVisual({ seed }: { seed: string }) {
       <div className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${size}, 6px)` }}>
         {cells.flat().map((on, i) => <span key={i} className={`h-1.5 w-1.5 rounded-[1px] ${on ? "bg-slate-800" : "bg-transparent"}`} />)}
       </div>
+    </div>
+  );
+}
+
+/* ===================== HISTORY VIEW (FASE 1) ===================== */
+function HistoryView({ history, onClear }: { history: HistoryItem[]; onClear: () => void }) {
+  const formatDate = (iso?: string) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+  };
+  const formatTime = (iso?: string) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="max-w-[420px] mx-auto p-4 animate-[fadeUp_.5s_ease]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Riwayat Antrean</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Tersimpan di perangkat ini</p>
+        </div>
+        {history.length > 0 && (
+          <button onClick={onClear} className="flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition">
+            <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
+          </button>
+        )}
+      </div>
+
+      {/* Empty State */}
+      {history.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 text-center">
+          <div className="w-20 h-20 rounded-3xl bg-[#4A7C2F]/10 flex items-center justify-center mx-auto mb-4">
+            <History className="w-10 h-10 text-[#4A7C2F]" />
+          </div>
+          <h3 className="text-lg font-extrabold text-slate-800">Belum ada riwayat</h3>
+          <p className="text-sm text-slate-500 mt-2 mb-4">
+            Antrean yang sudah selesai akan otomatis tersimpan di sini.
+          </p>
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+            <AlertCircle className="w-4 h-4" />
+            <span>Data hanya tersimpan di HP ini</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {[...history].reverse().map((item, idx) => {
+            const svc = SERVICES.find(s => s.value === item.service_type);
+            return (
+              <div key={item.id || idx} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 transition-all hover:shadow-md">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-2xl font-black text-[#4A7C2F] tracking-tight">{item.queue_number}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(item.created_at)} • {formatTime(item.created_at)}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      item.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                      item.status === "called" ? "bg-blue-100 text-blue-700" :
+                      "bg-amber-100 text-amber-700"
+                    }`}>
+                      {item.status === "completed" ? "SELESAI" : item.status === "called" ? "DIPANGGIL" : "MENUNGGU"}
+                    </span>
+                    {item.rated && (
+                      <span className="text-[10px] font-bold text-amber-500 flex items-center gap-0.5">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Dinilai
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 py-2 border-t border-slate-100">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-sm font-semibold text-slate-700 truncate">{item.customer_name}</span>
+                </div>
+
+                {svc && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <span className={`h-2 w-2 rounded-full ${svc.color}`} />
+                    <span className="text-xs font-bold text-slate-600">{svc.label}</span>
+                    <span className="text-xs text-slate-400">— {svc.desc}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="text-center pt-2">
+            <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1">
+              <Calendar className="w-3 h-3" />
+              Menampilkan {history.length} riwayat antrean
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
