@@ -6,7 +6,7 @@ import {
   TrendingUp, Ticket, ShieldCheck, Activity, Calendar,
 } from "lucide-react";
 
-export const Route = createFileRoute("/admin")({ component: Admin });
+export const Route = createFileRoute("/admin")({ component: Admin }); 
 
 function Wave() {
   return (
