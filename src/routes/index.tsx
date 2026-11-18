@@ -86,7 +86,7 @@ function Index() {
 
   const updateForm = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   const errs: Record<string, string> = {};
   if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
@@ -96,32 +96,37 @@ function Index() {
   if (Object.keys(errs).length) return;
 
   setLoading(true);
-
-  // Hitung total antrean hari ini untuk generate nomor
   const today = new Date().toISOString().split("T")[0];
+
+  // 🔑 PENTING: baca lewat VIEW, bukan tabel 'queues' (anon gak punya hak SELECT tabel mentah)
   const { count: todayCount } = await supabase
-    .from("queues")
+    .from("public_queue_view")
     .select("id", { count: "exact", head: true })
     .gte("created_at", `${today}T00:00:00`);
+
+  const { count: waitingCount } = await supabase
+    .from("public_queue_view")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "waiting");
 
   const nextNum = (todayCount ?? 0) + 1;
   const noAntrean = `A-${String(nextNum).padStart(3, "0")}`;
 
-  // Insert ke database
+  // INSERT tetap ke tabel 'queues' (anon punya hak INSERT di sini)
   const { data, error } = await supabase.from("queues").insert([{
     queue_number: noAntrean,
     customer_name: form.nama,
     customer_id: form.nik,
     contact: form.kontak,
     service_type: form.layanan,
-    status: "waiting"
+    status: "waiting",
   }]).select().single();
 
   setLoading(false);
   if (error) {
     setErrors({ form: error.message });
   } else {
-    setPosition(nextNum);
+    setPosition((waitingCount ?? 0) + 1);
     setTicket(data);
   }
 };
