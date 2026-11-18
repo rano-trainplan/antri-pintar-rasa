@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft, CheckCircle, Volume2, Users, Clock, Activity, LogOut,
   Zap, Ticket, RefreshCw, Search, ChevronsRight, ChevronLeft, ChevronRight,
@@ -15,7 +15,7 @@ type QueueItem = {
   queue_number: string;
   customer_name: string;
   customer_id: string | null;
-  contact?: string | null;
+  contact: string | null;
   service_type: string;
   status: Status;
   loket?: string | null;
@@ -27,6 +27,11 @@ type QueueItem = {
 const PAGE_SIZE = 5;
 
 function Petugas() {
+  const navigate = useNavigate();
+  const loket = "1";
+
+  // SEMUA HOOKS DI SINI (harus di urutan yang sama setiap render)
+  const [session, setSession] = useState<any>(null);
   const [queues, setQueues] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
@@ -34,60 +39,32 @@ function Petugas() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
-  // ==========================================
-  // 1. SESSION GUARD (CEK LOGIN)
-  // ==========================================
-  const [session, setSession] = useState<any>(null);
-
+  // Session guard
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
+      setSession(s);
+      setLoading(false);
+    });
+    return () => { sub.subscription.unsubscribe(); };
   }, []);
 
-  // Jika belum login, tampilkan halaman minta login
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-slate-200 max-w-sm mx-4">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogOut className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-800">Akses Terbatas</h2>
-          <p className="text-sm text-slate-500 mt-2 mb-6">
-            Halaman dashboard petugas membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
-          </p>
-          <a
-            href="/login"
-            className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition active:scale-95"
-          >
-            Login Petugas
-          </a>
-          <Link 
-            to="/" 
-            className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition"
-          >
-            <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const loket = "1"; // TODO: ambil dari session petugas nanti
-
-  /* ---------- FETCH + REALTIME ---------- */
+  // Fetch queues (hanya jalan kalau sudah login)
   const fetchQueues = async () => {
+    if (!session) return;
     const { data } = await supabase
       .from("queues")
       .select("*")
       .order("created_at", { ascending: true });
-    
     if (data) setQueues(data as QueueItem[]);
     setLoading(false);
   };
 
   useEffect(() => {
+    if (!session) return;
     fetchQueues();
     const ch = supabase.channel("public:queues")
       .on("postgres_changes", { event: "*", schema: "public", table: "queues" }, fetchQueues)
@@ -97,9 +74,9 @@ function Petugas() {
       supabase.removeChannel(ch); 
       clearInterval(t); 
     };
-  }, []);
+  }, [session]);
 
-  /* ---------- SPEECH ---------- */
+  // Suara panggilan
   const suaraPanggilan = (nomor: string, nama: string, lk: string = loket) => {
     if (!("speechSynthesis" in window)) return;
     const teks = `Nomor antrean ${nomor.replace("-", " ").replace(/0/g, "nol ")}, atas nama ${nama}, silakan menuju ke loket ${lk}.`;
@@ -110,12 +87,11 @@ function Petugas() {
     window.speechSynthesis.speak(s);
   };
 
-  /* ---------- ACTIONS ---------- */
+  // Update status
   const updateStatus = async (id: string, newStatus: Status, nomor: string, nama: string, lk: string = loket) => {
     const patch: any = { status: newStatus, loket: lk };
     if (newStatus === "completed") patch.completed_at = new Date().toISOString();
     if (newStatus === "called") patch.called_at = new Date().toISOString();
-    
     const { error } = await supabase.from("queues").update(patch).eq("id", id);
     if (!error) {
       if (newStatus === "called") suaraPanggilan(nomor, nama, lk);
@@ -128,7 +104,7 @@ function Petugas() {
     if (next) updateStatus(next.id, "called", next.queue_number, next.customer_name);
   };
 
-  /* ---------- DERIVED ---------- */
+  // Derived state
   const waiting = queues.filter(q => q.status === "waiting");
   const current = queues.find(q => q.status === "called");
   const completed = queues.filter(q => q.status === "completed");
@@ -137,11 +113,8 @@ function Petugas() {
   const avgMin = useMemo(() => {
     const withTime = completed.filter(q => q.completed_at && q.created_at);
     if (!withTime.length) return "0";
-    const total = withTime.reduce((s, q) => {
-      const completedAt = q.completed_at;
-      if (!completedAt) return s;
-      return s + (new Date(completedAt).getTime() - new Date(q.created_at).getTime()) / 60000;
-    }, 0);
+    const total = withTime.reduce((s, q) =>
+      s + (new Date(q.completed_at!).getTime() - new Date(q.created_at).getTime()) / 60000, 0);
     return (total / withTime.length).toFixed(1);
   }, [completed]);
 
@@ -168,7 +141,7 @@ function Petugas() {
   const safePage = Math.min(page, totalPages - 1);
   const paged = visible.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
-  /* ---------- HELPERS UI ---------- */
+  // Helpers UI
   const maskNik = (nik?: string | null) =>
     nik && nik.length >= 8 ? `${nik.slice(0, 4)}${"*".repeat(nik.length - 8)}${nik.slice(-4)}` : "—";
 
@@ -196,10 +169,36 @@ function Petugas() {
   const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
   const waitMin = current?.created_at ? Math.max(0, Math.round((now.getTime() - new Date(current.created_at).getTime()) / 60000)) : null;
 
-  /* ---------- RENDER ---------- */
+  // CONDITIONAL RETURN SETELAH SEMUA HOOKS
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><p>Memuat...</p></div>;
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-slate-200 max-w-sm w-full">
+          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <LogOut className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">Akses Ditolak</h2>
+          <p className="text-sm text-slate-500 mt-2 mb-6">
+            Halaman Admin membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
+          </p>
+          <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full bg-[#4A7C2F] hover:bg-[#3d6826] text-white px-6 py-3 rounded-xl font-bold transition active:scale-95">
+            Login Petugas
+          </Link>
+          <Link to="/" className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition">
+            <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDER UTAMA
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
-      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-4">
           <Link to="/" className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition">
@@ -228,7 +227,7 @@ function Petugas() {
           <button 
             onClick={async () => {
               await supabase.auth.signOut();
-              window.location.href = "/";
+              navigate({ to: "/" });
             }} 
             className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-lg transition"
           >
@@ -238,7 +237,6 @@ function Petugas() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 space-y-6">
-        {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Stat icon={<Ticket className="w-5 h-5" />} tint="slate" label="Total Tiket" value={queues.length} unit="orang" />
           <Stat icon={<Activity className="w-5 h-5" />} tint="blue" label="Aktif Dipanggil" value={current?.queue_number || "—"} big />
@@ -247,7 +245,6 @@ function Petugas() {
           <Stat icon={<Zap className="w-5 h-5" />} tint="violet" label="Rerata Layanan" value={`${avgMin}`} unit="menit" />
         </div>
 
-        {/* PANEL PANGGILAN AKTIF */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col lg:flex-row items-center gap-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600" />
           <div className="flex items-center gap-6 flex-1 w-full">
@@ -276,7 +273,7 @@ function Petugas() {
               ) : (
                 <div>
                   <h2 className="text-2xl font-bold text-slate-400">Belum ada antrean dipanggil</h2>
-                  <p className="text-sm text-slate-400 mt-1">Tekan “Panggil Berikutnya” untuk memulai.</p>
+                  <p className="text-sm text-slate-400 mt-1">Tekan "Panggil Berikutnya" untuk memulai.</p>
                 </div>
               )}
             </div>
@@ -300,7 +297,6 @@ function Petugas() {
           )}
         </section>
 
-        {/* TABEL ANTREAN */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
             <div>
@@ -385,7 +381,6 @@ function Petugas() {
   );
 }
 
-/* ---------- STAT CARD ---------- */
 function Stat({ icon, tint, label, value, unit, big }: { icon: React.ReactNode, tint: string, label: string, value: string | number, unit?: string, big?: boolean }) {
   const map: Record<string, string> = {
     slate: "bg-slate-50 text-slate-600", blue: "bg-blue-50 text-blue-600",
@@ -394,7 +389,7 @@ function Stat({ icon, tint, label, value, unit, big }: { icon: React.ReactNode, 
   };
   return (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${map[tint] || map["slate"]}`}>{icon}</div>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${map[tint] || map.slate}`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-[11px] font-medium text-slate-500 truncate">{label}</p>
         <p className={`font-black text-slate-800 leading-tight ${big ? "text-xl" : "text-2xl"}`}>
