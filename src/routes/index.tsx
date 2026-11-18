@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2,
   Clock, MapPin, ShieldCheck, ArrowRight, Sparkles, X, Home,
-  History, Star, Trash2, Calendar, AlertCircle
+  History, Star, Trash2, Calendar, AlertCircle, Volume2, CheckCircle,
+  Eye, MessageSquare, Hash, Phone as PhoneIcon, Timer
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const GREEN = "#4A7C2F";
+const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
 const SERVICES = [
   { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
   { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "bg-sky-500" },
@@ -31,11 +32,17 @@ type HistoryItem = {
   id: string;
   queue_number: string;
   customer_name: string;
+  customer_id?: string | null;
+  contact?: string | null;
   service_type: string;
   status: string;
   created_at: string;
+  called_at?: string | null;
+  completed_at?: string | null;
   finishedAt?: string;
   rated?: boolean;
+  rating?: number;
+  comment?: string;
 };
 
 function Wave() {
@@ -55,8 +62,8 @@ function Index() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [hasFeedback, setHasFeedback] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
 
-  // Load history dari localStorage
   useEffect(() => {
     const saved = localStorage.getItem("queue_history");
     if (saved) {
@@ -64,7 +71,6 @@ function Index() {
     }
   }, []);
 
-  // Restore tiket aktif saat refresh
   useEffect(() => {
     const saved = localStorage.getItem("current_ticket");
     if (saved) {
@@ -78,54 +84,85 @@ function Index() {
     }
   }, []);
 
-  // Simpan tiket aktif ke localStorage
   useEffect(() => {
     if (ticket) localStorage.setItem("current_ticket", JSON.stringify({ ticket, position }));
     else localStorage.removeItem("current_ticket");
   }, [ticket, position]);
 
+  // POLLING STATUS via VIEW
+  useEffect(() => {
+    if (!ticket?.id) return;
+    let active = true;
+    const check = async () => {
+      const { data } = await supabase
+        .from("public_queue_view")
+        .select("status, completed_at, called_at")
+        .eq("id", ticket.id)
+        .single();
+      if (!active || !data) return;
+      setTicket((prev: any) =>
+        prev ? { ...prev, status: data.status, completed_at: data.completed_at, called_at: data.called_at } : prev
+      );
+    };
+    check();
+    const iv = setInterval(check, 4000);
+    return () => { active = false; clearInterval(iv); };
+  }, [ticket?.id]);
+
   const updateForm = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
-   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  const errs: Record<string, string> = {};
-  if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
-  if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
-  if (!form.layanan) errs["layanan"] = "Pilih layanan";
-  setErrors(errs);
-  if (Object.keys(errs).length) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
+    if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
+    if (!form.layanan) errs["layanan"] = "Pilih layanan";
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
 
-  setLoading(true);
+    setLoading(true);
+    const { data, error } = await supabase.rpc("submit_queue", {
+      p_customer_name: form.nama,
+      p_customer_id: form.nik,
+      p_contact: form.kontak || null,
+      p_service_type: form.layanan,
+    });
 
-  // Panggil RPC (bypass privilege tabel → kebal Lovable override)
-  const { data, error } = await supabase.rpc('submit_queue', {
-    p_customer_name: form.nama,
-    p_customer_id:   form.nik,
-    p_contact:       form.kontak || "",
-    p_service_type:  form.layanan,
-  });
+    setLoading(false);
+    if (error) {
+      setErrors({ form: error.message });
+    } else {
+      setPosition((data as any)?.position ?? null);
+      setTicket(data);
+      setHasFeedback(false);
+      setActiveTab("home");
+    }
+  };
 
-  setLoading(false);
-  if (error) {
-    setErrors({ form: error.message });
-  } else {
-    setPosition((data as any).position ?? null);
-    setTicket(data);
-  }
-};
-
-  const saveToHistory = (t: any) => {
+  const saveToHistory = (t: any, ratingData?: { rating?: number; comment?: string }) => {
     const newItem: HistoryItem = {
       id: t.id,
       queue_number: t.queue_number,
       customer_name: t.customer_name,
+      customer_id: t.customer_id,
+      contact: t.contact,
       service_type: t.service_type,
       status: t.status,
       created_at: t.created_at,
+      called_at: t.called_at,
+      completed_at: t.completed_at,
       finishedAt: new Date().toISOString(),
-      rated: hasFeedback,
+      rated: hasFeedback || !!ratingData?.rating,
+      rating: ratingData?.rating,
+      comment: ratingData?.comment,
     };
-    const updated = [...history, newItem].slice(-30); // max 30 riwayat
+    const updated = [...history, newItem].slice(-30);
+    setHistory(updated);
+    localStorage.setItem("queue_history", JSON.stringify(updated));
+  };
+
+  const updateHistoryItem = (id: string, patch: Partial<HistoryItem>) => {
+    const updated = history.map(h => h.id === id ? { ...h, ...patch } : h);
     setHistory(updated);
     localStorage.setItem("queue_history", JSON.stringify(updated));
   };
@@ -146,11 +183,18 @@ function Index() {
     }
   };
 
+  const handleFeedbackSuccess = (rating: number, comment: string) => {
+    setHasFeedback(true);
+    if (ticket) {
+      saveToHistory(ticket, { rating, comment });
+    }
+    alert("Terima kasih atas penilaian Anda! ⭐");
+  };
+
   return (
     <div className="relative min-h-screen bg-[#F6F8F5] flex flex-col overflow-hidden">
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@keyframes draw{to{stroke-dashoffset:0}}circle[class*="draw"],path[class*="draw"]{stroke-dasharray:120;stroke-dashoffset:120}`}</style>
 
-      {/* CONTENT AREA */}
       <div className="flex-1 overflow-y-auto pb-24">
         {activeTab === "home" ? (
           <div className="flex items-center justify-center p-4 min-h-full">
@@ -158,13 +202,10 @@ function Index() {
               {ticket ? (
                 <>
                   <TicketCard ticket={ticket} position={position} onReset={reset} />
-                  {ticket.status === 'completed' && !hasFeedback && (
+                  {ticket.status === "completed" && !hasFeedback && (
                     <FeedbackForm
                       queueId={ticket.id}
-                      onSuccess={() => {
-                        setHasFeedback(true);
-                        alert("Terima kasih atas penilaian Anda! ⭐");
-                      }}
+                      onSuccess={(rating, comment) => handleFeedbackSuccess(rating, comment)}
                     />
                   )}
                 </>
@@ -174,33 +215,207 @@ function Index() {
             </div>
           </div>
         ) : (
-          <HistoryView history={history} onClear={clearHistory} />
+          <HistoryView
+            history={history}
+            onClear={clearHistory}
+            onViewDetail={(item) => setSelectedItem(item)}
+          />
         )}
       </div>
 
-      {/* BOTTOM NAVIGATION */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+      {/* MODAL DETAIL */}
+      {selectedItem && typeof document !== "undefined" && createPortal(
+        <HistoryDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+        />,
+        document.body
+      )}
+
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40">
         <div className="max-w-md mx-auto flex items-center justify-around px-2 py-2">
-          <NavBtn
-            icon={<Home className="w-5 h-5" />}
-            label="Home"
-            active={activeTab === "home"}
-            onClick={() => setActiveTab("home")}
-          />
-          <NavBtn
-            icon={<History className="w-5 h-5" />}
-            label="Riwayat"
-            badge={history.length > 0 ? history.length : undefined}
-            active={activeTab === "riwayat"}
-            onClick={() => setActiveTab("riwayat")}
-          />
+          <NavBtn icon={<Home className="w-5 h-5" />} label="Home" active={activeTab === "home"} onClick={() => setActiveTab("home")} />
+          <NavBtn icon={<History className="w-5 h-5" />} label="Riwayat" badge={history.length > 0 ? history.length : undefined} active={activeTab === "riwayat"} onClick={() => setActiveTab("riwayat")} />
         </div>
       </nav>
     </div>
   );
 }
 
-/* ===================== BOTTOM NAV BTN ===================== */
+/* ===================== HISTORY DETAIL MODAL ===================== */
+function HistoryDetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void }) {
+  const svc = SERVICES.find(s => s.value === item.service_type);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const formatDateTime = (iso?: string | null) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("id-ID", {
+      day: "2-digit", month: "long", year: "numeric",
+      hour: "2-digit", minute: "2-digit", timeZone: TZ
+    }) + " WIT";
+  };
+
+  const getDuration = () => {
+    if (!item.completed_at || !item.created_at) return null;
+    const diff = (new Date(item.completed_at).getTime() - new Date(item.created_at).getTime()) / 60000;
+    if (diff < 1) return `${Math.round(diff * 60)} detik`;
+    const m = Math.floor(diff);
+    const s = Math.round((diff - m) * 60);
+    return s > 0 ? `${m} mnt ${s} dtk` : `${m} menit`;
+  };
+
+  const maskNik = (nik?: string | null) =>
+    nik && nik.length >= 8 ? `${nik.slice(0, 4)}${"*".repeat(nik.length - 8)}${nik.slice(-4)}` : (nik || "—");
+
+  const statusConfig = {
+    waiting: { label: "MENUNGGU", bg: "bg-amber-100", text: "text-amber-700" },
+    called: { label: "DIPANGGIL", bg: "bg-blue-100", text: "text-blue-700" },
+    completed: { label: "SELESAI", bg: "bg-emerald-100", text: "text-emerald-700" },
+    skipped: { label: "DILEWAT", bg: "bg-slate-100", text: "text-slate-600" },
+  };
+  const sc = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.waiting;
+  const duration = getDuration();
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-[fadeUp_.2s_ease]"
+    >
+      <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto animate-[fadeUp_.3s_ease]">
+        {/* HEADER */}
+        <div className="relative bg-[#4A7C2F] px-6 pt-6 pb-14 text-center rounded-t-3xl">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 border border-white/25">
+            <Ticket className="h-7 w-7 text-white" />
+          </div>
+          <p className="text-[11px] font-bold tracking-widest text-white/60 uppercase">Nomor Antrean</p>
+          <p className="text-5xl font-black text-white tracking-tight mt-1">{item.queue_number}</p>
+          <div className="mt-3 flex justify-center">
+            <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${sc.bg} ${sc.text}`}>
+              {sc.label}
+            </span>
+          </div>
+          <Wave />
+        </div>
+
+        {/* BODY */}
+        <div className="px-6 pb-6 -mt-6 relative">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-4 mb-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Informasi Pengunjung</h3>
+            <div className="space-y-3">
+              <InfoRow icon={<User className="w-4 h-4" />} label="Nama" value={item.customer_name} />
+              {item.customer_id && (
+                <InfoRow icon={<Hash className="w-4 h-4" />} label="NIK / ID" value={maskNik(item.customer_id)} />
+              )}
+              {item.contact && (
+                <InfoRow icon={<PhoneIcon className="w-4 h-4" />} label="Kontak" value={item.contact} />
+              )}
+              {svc && (
+                <InfoRow
+                  icon={<MapPin className="w-4 h-4" />}
+                  label="Layanan"
+                  value={
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${svc.color}`} />
+                      <span className="font-semibold text-slate-700">{svc.label}</span>
+                      <span className="text-xs text-slate-400">— {svc.desc}</span>
+                    </div>
+                  }
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-4 mb-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Waktu & Durasi</h3>
+            <div className="space-y-3">
+              <InfoRow icon={<Calendar className="w-4 h-4" />} label="Diambil" value={formatDateTime(item.created_at)} />
+              {item.called_at && (
+                <InfoRow icon={<Volume2 className="w-4 h-4" />} label="Dipanggil" value={formatDateTime(item.called_at)} />
+              )}
+              {item.completed_at && (
+                <InfoRow icon={<CheckCircle className="w-4 h-4" />} label="Selesai" value={formatDateTime(item.completed_at)} />
+              )}
+              {duration && (
+                <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-[#4A7C2F]/10 text-[#4A7C2F] flex items-center justify-center shrink-0">
+                    <Timer className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase">Durasi Layanan</p>
+                    <p className="text-sm font-bold text-slate-800">{duration}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {item.rated && item.rating && (
+            <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl border border-amber-200 p-4">
+              <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Penilaian Anda
+              </h3>
+              <div className="flex items-center gap-1 mb-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star
+                    key={n}
+                    className={`w-6 h-6 ${n <= item.rating! ? "fill-amber-400 text-amber-400" : "text-slate-300"}`}
+                  />
+                ))}
+                <span className="ml-2 text-sm font-bold text-amber-700">{item.rating}/5</span>
+              </div>
+              {item.comment && (
+                <div className="mt-3 pt-3 border-t border-amber-200/60">
+                  <p className="text-[11px] font-bold text-amber-700 uppercase mb-1.5 flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" /> Komentar
+                  </p>
+                  <p className="text-sm text-slate-700 italic bg-white/60 rounded-xl p-3">"{item.comment}"</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!item.rated && item.status === "completed" && (
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 text-center">
+              <p className="text-sm text-slate-500">
+                Anda belum memberikan penilaian untuk antrean ini.
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            className="w-full mt-4 rounded-2xl bg-[#4A7C2F] hover:bg-[#3d6826] text-white font-bold py-3.5 transition active:scale-[.98]"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0 pt-1">
+        <p className="text-[11px] font-bold text-slate-400 uppercase">{label}</p>
+        <div className="text-sm text-slate-800 font-semibold break-words">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ===================== BOTTOM NAV ===================== */
 function NavBtn({ icon, label, active, onClick, badge }: any) {
   return (
     <button
@@ -299,7 +514,6 @@ function Input({ label, icon, error, optional, children }: any) {
   );
 }
 
-/* ===================== SERVICE SELECT (Mobile-Safe) ===================== */
 function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 280 });
@@ -386,19 +600,26 @@ function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v
 /* ===================== TICKET CARD ===================== */
 function TicketCard({ ticket, position, onReset }: any) {
   const svc = SERVICES.find(s => s.value === ticket.service_type);
-  const time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  const status = ticket.status;
+  const time = ticket.created_at
+    ? new Date(ticket.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: TZ })
+    : new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
+
+  const header =
+    status === "completed"
+      ? { icon: <CheckCircle className="h-9 w-9 text-white" />, title: "Pelayanan Selesai!", sub: "Silakan beri penilaian untuk kami" }
+      : status === "called"
+      ? { icon: <Volume2 className="h-9 w-9 text-white" />, title: "Nomor Anda Dipanggil!", sub: "Silakan menuju loket sekarang" }
+      : { icon: <Check className="h-9 w-9 text-white" />, title: "Antrean Berhasil!", sub: "Silakan menunggu nomor Anda dipanggil" };
 
   return (
     <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-[#4A7C2F]/10 overflow-hidden">
       <div className="relative bg-[#4A7C2F] px-7 pt-10 pb-16 text-center overflow-hidden">
         <div className="relative mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 border border-white/25">
-          <svg viewBox="0 0 52 52" className="h-9 w-9">
-            <circle cx="26" cy="26" r="24" fill="none" stroke="white" strokeWidth="3" className="animate-[draw_.6s_ease_.1s_both]" />
-            <path fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" d="M16 27l7 7 14-15" className="animate-[draw_.5s_ease_.5s_both]" />
-          </svg>
+          {header.icon}
         </div>
-        <h2 className="relative text-xl font-extrabold text-white">Antrean Berhasil!</h2>
-        <p className="relative mt-1 text-[13px] text-white/70">Silakan menunggu nomor Anda dipanggil</p>
+        <h2 className="relative text-xl font-extrabold text-white">{header.title}</h2>
+        <p className="relative mt-1 text-[13px] text-white/70">{header.sub}</p>
         <Wave />
       </div>
 
@@ -417,8 +638,8 @@ function TicketCard({ ticket, position, onReset }: any) {
         <div className="space-y-2 text-[13px]">
           <Row icon={<User className="h-3.5 w-3.5" />} label="Nama" value={ticket.customer_name} />
           <Row icon={<MapPin className="h-3.5 w-3.5" />} label="Layanan" value={svc ? `${svc.label} — ${svc.desc}` : ticket.service_type} />
-          <Row icon={<Clock className="h-3.5 w-3.5" />} label="Waktu" value={`${time} WIB`} />
-          {position != null && <Row icon={<Sparkles className="h-3.5 w-3.5" />} label="Posisi" value={`Antrean ke-${position}`} accent />}
+          <Row icon={<Clock className="h-3.5 w-3.5" />} label="Waktu" value={`${time} WIT`} />
+          {position != null && status === "waiting" && <Row icon={<Sparkles className="h-3.5 w-3.5" />} label="Posisi" value={`Antrean ke-${position}`} accent />}
         </div>
         <QrVisual seed={ticket.queue_number} />
       </div>
@@ -474,20 +695,19 @@ function QrVisual({ seed }: { seed: string }) {
   );
 }
 
-/* ===================== HISTORY VIEW (FASE 1) ===================== */
-function HistoryView({ history, onClear }: { history: HistoryItem[]; onClear: () => void }) {
+/* ===================== HISTORY VIEW (dengan tombol Detail) ===================== */
+function HistoryView({ history, onClear, onViewDetail }: { history: HistoryItem[]; onClear: () => void; onViewDetail: (item: HistoryItem) => void }) {
   const formatDate = (iso?: string) => {
     if (!iso) return "—";
     return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
   };
   const formatTime = (iso?: string) => {
     if (!iso) return "—";
-    return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
   };
 
   return (
     <div className="max-w-[420px] mx-auto p-4 animate-[fadeUp_.5s_ease]">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Riwayat Antrean</h2>
@@ -500,16 +720,13 @@ function HistoryView({ history, onClear }: { history: HistoryItem[]; onClear: ()
         )}
       </div>
 
-      {/* Empty State */}
       {history.length === 0 ? (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 text-center">
           <div className="w-20 h-20 rounded-3xl bg-[#4A7C2F]/10 flex items-center justify-center mx-auto mb-4">
             <History className="w-10 h-10 text-[#4A7C2F]" />
           </div>
           <h3 className="text-lg font-extrabold text-slate-800">Belum ada riwayat</h3>
-          <p className="text-sm text-slate-500 mt-2 mb-4">
-            Antrean yang sudah selesai akan otomatis tersimpan di sini.
-          </p>
+          <p className="text-sm text-slate-500 mt-2 mb-4">Antrean yang sudah selesai akan otomatis tersimpan di sini.</p>
           <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
             <AlertCircle className="w-4 h-4" />
             <span>Data hanya tersimpan di HP ini</span>
@@ -520,40 +737,52 @@ function HistoryView({ history, onClear }: { history: HistoryItem[]; onClear: ()
           {[...history].reverse().map((item, idx) => {
             const svc = SERVICES.find(s => s.value === item.service_type);
             return (
-              <div key={item.id || idx} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 transition-all hover:shadow-md">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <p className="text-2xl font-black text-[#4A7C2F] tracking-tight">{item.queue_number}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(item.created_at)} • {formatTime(item.created_at)}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      item.status === "completed" ? "bg-emerald-100 text-emerald-700" :
-                      item.status === "called" ? "bg-blue-100 text-blue-700" :
-                      "bg-amber-100 text-amber-700"
-                    }`}>
-                      {item.status === "completed" ? "SELESAI" : item.status === "called" ? "DIPANGGIL" : "MENUNGGU"}
-                    </span>
-                    {item.rated && (
-                      <span className="text-[10px] font-bold text-amber-500 flex items-center gap-0.5">
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Dinilai
+              <div key={item.id || idx} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                {/* Bagian atas - info utama */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-2xl font-black text-[#4A7C2F] tracking-tight">{item.queue_number}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{formatDate(item.created_at)} • {formatTime(item.created_at)} WIT</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        item.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                        item.status === "called" ? "bg-blue-100 text-blue-700" :
+                        item.status === "skipped" ? "bg-slate-100 text-slate-600" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>
+                        {item.status === "completed" ? "SELESAI" : item.status === "called" ? "DIPANGGIL" : item.status === "skipped" ? "DILEWAT" : "MENUNGGU"}
                       </span>
-                    )}
+                      {item.rated && (
+                        <span className="text-[10px] font-bold text-amber-500 flex items-center gap-0.5">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> Dinilai
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  <div className="flex items-center gap-2 py-2 border-t border-slate-100">
+                    <User className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-sm font-semibold text-slate-700 truncate">{item.customer_name}</span>
+                  </div>
+
+                  {svc && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                      <span className={`h-2 w-2 rounded-full ${svc.color}`} />
+                      <span className="text-xs font-bold text-slate-600">{svc.label}</span>
+                      <span className="text-xs text-slate-400">— {svc.desc}</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-2 py-2 border-t border-slate-100">
-                  <User className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-sm font-semibold text-slate-700 truncate">{item.customer_name}</span>
-                </div>
-
-                {svc && (
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                    <span className={`h-2 w-2 rounded-full ${svc.color}`} />
-                    <span className="text-xs font-bold text-slate-600">{svc.label}</span>
-                    <span className="text-xs text-slate-400">— {svc.desc}</span>
-                  </div>
-                )}
+                {/* Tombol Detail */}
+                <button
+                  onClick={() => onViewDetail(item)}
+                  className="w-full flex items-center justify-center gap-2 bg-[#4A7C2F]/5 hover:bg-[#4A7C2F]/10 text-[#4A7C2F] font-bold text-xs py-2.5 border-t border-slate-100 transition"
+                >
+                  <Eye className="w-3.5 h-3.5" /> Lihat Detail
+                </button>
               </div>
             );
           })}
