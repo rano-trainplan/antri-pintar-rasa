@@ -101,7 +101,7 @@ function Index() {
   const { data, error } = await supabase.rpc('submit_queue', {
     p_customer_name: form.nama,
     p_customer_id:   form.nik,
-    p_contact:       form.kontak || null,
+    p_contact:       form.kontak || "",
     p_service_type:  form.layanan,
   });
 

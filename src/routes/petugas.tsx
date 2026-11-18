@@ -39,7 +39,7 @@ function Wave() {
 function Petugas() {
   const navigate = useNavigate();
   const loket = "1";
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().slice(0, 10);
 
   const [session, setSession] = useState<any>(null);
   const [queues, setQueues] = useState<QueueItem[]>([]);
@@ -463,7 +463,7 @@ function Stat({ icon, tint, label, value, unit, big, highlight }: { icon: React.
   };
   return (
     <div className={`bg-white p-4 md:p-5 rounded-2xl border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${highlight ? "border-[#4A7C2F]/30 ring-1 ring-[#4A7C2F]/20 bg-[#4A7C2F]/[0.04]" : "border-slate-100 hover:border-[#4A7C2F]/20"}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map.slate}`}>{icon}</div>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map["slate"]}`}>{icon}</div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{label}</p>
       <p className={`font-black text-slate-800 leading-tight mt-0.5 ${big ? "text-xl" : "text-2xl"} tabular-nums`}>
         {value} {unit && !big && <span className="text-[11px] font-semibold text-slate-400 ml-0.5">{unit}</span>}

@@ -33,7 +33,7 @@ function Login() {
     if (error) {
       setError("Email atau password salah.");
     } else {
-      const role = data?.user?.app_metadata?.role;
+      const role = data?.user?.app_metadata?.["role"];
       if (role === "admin") {
         navigate({ to: "/admin" });
       } else {
