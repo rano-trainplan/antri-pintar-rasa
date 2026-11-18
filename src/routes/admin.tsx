@@ -3,12 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
 import {
   Users, Clock, CheckCircle, Star, LogOut, ArrowLeft,
-  TrendingUp, Ticket, ShieldCheck, Activity,
+  TrendingUp, Ticket, ShieldCheck, Activity, Calendar,
 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({ component: Admin });
 
-/* ===================== WAVE PUTIH ===================== */
 function Wave() {
   return (
     <svg viewBox="0 0 400 42" preserveAspectRatio="none" className="absolute bottom-[-1px] left-0 w-full h-10 block">
@@ -20,51 +19,43 @@ function Wave() {
 function Admin() {
   const navigate = useNavigate();
 
-  // ===== SEMUA HOOKS DI ATAS (urutan tetap, tidak pernah di-skip) =====
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [filterDate, setFilterDate] = useState(new Date().toISOString().split("T")[0]); // FASE 2
   const [stats, setStats] = useState({ total: 0, waiting: 0, called: 0, completed: 0, avgRating: 0 });
   const [services, setServices] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
 
-  // Session guard
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => {
-      setSession(s);
-      setLoading(false);
-    });
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_, s) => { setSession(s); setLoading(false); });
     return () => { sub.subscription.unsubscribe(); };
   }, []);
 
-  // Fetch data (di-gate dengan session)
   const fetchData = async () => {
     if (!session) return;
-    const today = new Date().toISOString().split("T")[0];
+    const startOfDay = `${filterDate}T00:00:00`;
+    const endOfDay = `${filterDate}T23:59:59`;
 
-    const { count: total } = await supabase.from("queues").select("id", { count: "exact", head: true }).gte("created_at", `${today}T00:00:00`);
-    const { count: waiting } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting").gte("created_at", `${today}T00:00:00`);
-    const { count: called } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "called").gte("created_at", `${today}T00:00:00`);
-    const { count: completed } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "completed").gte("created_at", `${today}T00:00:00`);
+    const { count: total } = await supabase.from("queues").select("id", { count: "exact", head: true }).gte("created_at", startOfDay).lte("created_at", endOfDay);
+    const { count: waiting } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting").gte("created_at", startOfDay).lte("created_at", endOfDay);
+    const { count: called } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "called").gte("created_at", startOfDay).lte("created_at", endOfDay);
+    const { count: completed } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "completed").gte("created_at", startOfDay).lte("created_at", endOfDay);
 
-    const { data: feedbacks } = await supabase.from("feedbacks").select("rating").gte("created_at", `${today}T00:00:00`);
+    const { data: feedbacks } = await supabase.from("feedbacks").select("rating").gte("created_at", startOfDay).lte("created_at", endOfDay);
     const avg = feedbacks?.length ? (feedbacks.reduce((a: number, c: any) => a + c.rating, 0) / feedbacks.length) : 0;
 
-    const { data: svcData } = await supabase.from("queues").select("service_type").gte("created_at", `${today}T00:00:00`);
+    const { data: svcData } = await supabase.from("queues").select("service_type").gte("created_at", startOfDay).lte("created_at", endOfDay);
     const svcCount: Record<string, number> = {};
     svcData?.forEach((q: any) => { svcCount[q.service_type] = (svcCount[q.service_type] || 0) + 1; });
     const maxVal = Math.max(...Object.values(svcCount), 1);
     setServices(Object.entries(svcCount).map(([name, count]) => ({ name, count, pct: (count / maxVal) * 100 })));
 
-    const { data: hist } = await supabase.from("queues").select("*, feedbacks(rating)").order("created_at", { ascending: false }).limit(10);
+    const { data: hist } = await supabase.from("queues").select("*, feedbacks(rating)").gte("created_at", startOfDay).lte("created_at", endOfDay).order("created_at", { ascending: false }).limit(20);
     setHistory(hist || []);
     setStats({ total: total || 0, waiting: waiting || 0, called: called || 0, completed: completed || 0, avgRating: Number(avg.toFixed(1)) });
   };
 
-  // Realtime (hanya aktif saat session ada)
   useEffect(() => {
     if (!session) return;
     fetchData();
@@ -73,9 +64,11 @@ function Admin() {
       .on("postgres_changes", { event: "*", schema: "public", table: "feedbacks" }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [session]);
+  }, [session, filterDate]);
 
-  // ===== CONDITIONAL RETURN SETELAH SEMUA HOOKS =====
+  const isToday = filterDate === new Date().toISOString().split("T")[0];
+  const filterDateDisplay = new Date(filterDate).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F6F8F5]">
@@ -97,9 +90,7 @@ function Admin() {
             <ShieldCheck className="w-8 h-8" />
           </div>
           <h2 className="text-xl font-extrabold text-slate-800">Akses Ditolak</h2>
-          <p className="text-sm text-slate-500 mt-2 mb-6">
-            Halaman Admin membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
-          </p>
+          <p className="text-sm text-slate-500 mt-2 mb-6">Silakan login terlebih dahulu.</p>
           <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full bg-[#4A7C2F] hover:bg-[#3d6826] text-white px-6 py-3.5 rounded-2xl font-bold transition active:scale-95">
             Login Admin
           </Link>
@@ -111,7 +102,6 @@ function Admin() {
     );
   }
 
-  // ===== RENDER UTAMA =====
   return (
     <div className="relative min-h-screen bg-[#F6F8F5] font-sans pb-14 overflow-x-hidden">
       <div className="absolute inset-0 -z-0 pointer-events-none">
@@ -119,7 +109,6 @@ function Admin() {
         <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#4A7C2F]/10 blur-3xl" />
       </div>
 
-      {/* HEADER HIJAU + WAVE */}
       <header className="relative bg-[#4A7C2F] px-5 md:px-8 pt-5 pb-16 overflow-hidden">
         <div className="absolute -top-16 -left-10 w-56 h-56 rounded-full bg-white/10 blur-2xl" />
         <div className="relative flex items-center justify-between gap-3 flex-wrap">
@@ -134,9 +123,7 @@ function Admin() {
                   <span className="w-1.5 h-1.5 rounded-full bg-lime-300 animate-pulse" />ADMIN
                 </span>
               </div>
-              <p className="text-[12px] text-white/70 mt-0.5 truncate">
-                Monitoring real-time & laporan harian • {session.user?.email}
-              </p>
+              <p className="text-[12px] text-white/70 mt-0.5 truncate">Monitoring real-time & laporan harian • {session.user?.email}</p>
             </div>
           </div>
           <button
@@ -150,7 +137,6 @@ function Admin() {
       </header>
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 -mt-4 space-y-6">
-        {/* STAT CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
           <Stat icon={<Ticket className="w-5 h-5" />} tint="brand" label="Total Hari Ini" value={stats.total} unit="orang" />
           <Stat icon={<Clock className="w-5 h-5" />} tint="amber" label="Menunggu" value={stats.waiting} unit="antrean" />
@@ -159,8 +145,35 @@ function Admin() {
           <Stat icon={<Star className="w-5 h-5" />} tint="violet" label="Rata-rata Rating" value={stats.avgRating} unit="/ 5" highlight />
         </div>
 
+        {/* FASE 2: Date Filter */}
+        <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 md:p-5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-[#4A7C2F] shrink-0">
+              <Calendar className="w-5 h-5" />
+              <span className="text-sm font-bold">Periode Laporan:</span>
+            </div>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              className="flex-1 bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+            />
+            <div className="text-xs font-semibold text-slate-500 shrink-0">
+              {isToday ? "📅 Hari ini" : `📅 ${filterDateDisplay}`}
+            </div>
+            {!isToday && (
+              <button
+                onClick={() => setFilterDate(new Date().toISOString().split("T")[0])}
+                className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-3 py-2 rounded-lg transition shrink-0"
+              >
+                Reset ke Hari Ini
+              </button>
+            )}
+          </div>
+        </section>
+
         <div className="grid md:grid-cols-2 gap-6">
-          {/* GRAFIK BAR */}
           <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-5">
               <div className="w-9 h-9 rounded-xl bg-[#4A7C2F]/10 text-[#4A7C2F] flex items-center justify-center">
@@ -168,14 +181,14 @@ function Admin() {
               </div>
               <div>
                 <h3 className="font-extrabold text-slate-800 tracking-tight">Antrean per Layanan</h3>
-                <p className="text-[11px] text-slate-400">Hari ini</p>
+                <p className="text-[11px] text-slate-400">{isToday ? "Hari ini" : filterDateDisplay}</p>
               </div>
             </div>
             <div className="space-y-4">
               {services.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center"><Ticket className="w-6 h-6 text-slate-300" /></div>
-                  <p className="text-sm font-semibold text-slate-400">Belum ada data hari ini</p>
+                  <p className="text-sm font-semibold text-slate-400">Belum ada data di tanggal ini</p>
                 </div>
               ) : services.map((s: any) => (
                 <div key={s.name}>
@@ -191,20 +204,19 @@ function Admin() {
             </div>
           </section>
 
-          {/* RIWAYAT TABEL */}
           <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 overflow-hidden">
             <div className="flex items-center gap-2 mb-5">
               <div className="w-9 h-9 rounded-xl bg-[#4A7C2F]/10 text-[#4A7C2F] flex items-center justify-center">
                 <Users className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-extrabold text-slate-800 tracking-tight">Riwayat Terakhir</h3>
-                <p className="text-[11px] text-slate-400">10 antrean terbaru</p>
+                <h3 className="font-extrabold text-slate-800 tracking-tight">Riwayat Antrean</h3>
+                <p className="text-[11px] text-slate-400">{history.length} antrean terbaru</p>
               </div>
             </div>
-            <div className="overflow-x-auto rounded-2xl border border-slate-100">
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[400px] overflow-y-auto">
               <table className="w-full text-sm">
-                <thead className="bg-[#4A7C2F]/5 text-[#4A7C2F] text-[11px] uppercase tracking-wider">
+                <thead className="bg-[#4A7C2F]/5 text-[#4A7C2F] text-[11px] uppercase tracking-wider sticky top-0">
                   <tr>
                     <th className="text-left px-3 py-2.5 font-bold">No</th>
                     <th className="text-left px-3 py-2.5 font-bold">Nama</th>
@@ -244,7 +256,6 @@ function Admin() {
   );
 }
 
-/* ===================== STAT CARD ===================== */
 function Stat({ icon, tint, label, value, unit, highlight }: { icon: React.ReactNode, tint: string, label: string, value: string | number, unit?: string, highlight?: boolean }) {
   const map: Record<string, string> = {
     brand: "bg-[#4A7C2F]/10 text-[#4A7C2F]",
@@ -252,6 +263,7 @@ function Stat({ icon, tint, label, value, unit, highlight }: { icon: React.React
     amber: "bg-amber-50 text-amber-600",
     emerald: "bg-emerald-50 text-emerald-600",
     violet: "bg-violet-50 text-violet-600",
+    slate: "bg-slate-100 text-slate-600",
   };
   return (
     <div className={`bg-white p-4 md:p-5 rounded-2xl border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${highlight ? "border-[#4A7C2F]/30 ring-1 ring-[#4A7C2F]/20 bg-[#4A7C2F]/[0.04]" : "border-slate-100 hover:border-[#4A7C2F]/20"}`}>
