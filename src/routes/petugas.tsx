@@ -28,6 +28,10 @@ type QueueItem = {
 const PAGE_SIZE = 5;
 const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
 
+// 🔑 Helper: tanggal hari ini dalam WIT (format YYYY-MM-DD)
+const getTodayWIT = () =>
+  new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+
 function Wave() {
   return (
     <svg viewBox="0 0 400 42" preserveAspectRatio="none" className="absolute bottom-[-1px] left-0 w-full h-10 block">
@@ -39,7 +43,7 @@ function Wave() {
 function Petugas() {
   const navigate = useNavigate();
   const loket = "1";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayWIT(); // 🔑 FIX: pakai WIT
 
   const [session, setSession] = useState<any>(null);
   const [queues, setQueues] = useState<QueueItem[]>([]);
@@ -161,6 +165,7 @@ function Petugas() {
     }
   };
 
+  // 🔑 Semua waktu pakai WIT
   const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: TZ });
   const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: TZ });
   const waitMin = current?.created_at ? Math.max(0, Math.round((now.getTime() - new Date(current.created_at).getTime()) / 60000)) : null;
@@ -327,7 +332,7 @@ function Petugas() {
             </div>
           </div>
 
-          {/* FILTER TANGGAL RENTANG */}
+          {/* 🔑 FILTER RENTANG TANGGAL */}
           <div className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/10 rounded-2xl p-3 mb-4">
             <div className="flex items-center gap-2 text-[#4A7C2F] mb-2">
               <Calendar className="w-4 h-4" />
@@ -463,7 +468,7 @@ function Stat({ icon, tint, label, value, unit, big, highlight }: { icon: React.
   };
   return (
     <div className={`bg-white p-4 md:p-5 rounded-2xl border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${highlight ? "border-[#4A7C2F]/30 ring-1 ring-[#4A7C2F]/20 bg-[#4A7C2F]/[0.04]" : "border-slate-100 hover:border-[#4A7C2F]/20"}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map["slate"]}`}>{icon}</div>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map.slate}`}>{icon}</div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{label}</p>
       <p className={`font-black text-slate-800 leading-tight mt-0.5 ${big ? "text-xl" : "text-2xl"} tabular-nums`}>
         {value} {unit && !big && <span className="text-[11px] font-semibold text-slate-400 ml-0.5">{unit}</span>}
