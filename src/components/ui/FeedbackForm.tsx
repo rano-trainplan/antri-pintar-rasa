@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Star, Send } from "lucide-react";
-import { supabase } from "../integrations/supabase/client";
+import { supabase } from "../../integrations/supabase/client";
 
 export default function FeedbackForm({ queueId, onSuccess }: { queueId: string; onSuccess: () => void }) {
   const [rating, setRating] = useState(0);

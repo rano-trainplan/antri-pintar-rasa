@@ -44,9 +44,9 @@ function Admin() {
           <p className="text-sm text-slate-500 mt-2 mb-6">
             Halaman Admin membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
           </p>
-          <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition active:scale-95">
+          <a href="/login" className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition active:scale-95">
             Login Admin
-          </Link>
+          </a>
           <Link to="/" className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition">
             <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
           </Link>

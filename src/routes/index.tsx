@@ -3,9 +3,21 @@ import { Ticket, User, CreditCard, Phone, ChevronDown, Check, Loader2, Clock, Ma
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../integrations/supabase/client";
-import FeedbackForm from "../components/FeedbackForm";
+import FeedbackForm from "../components/ui/FeedbackForm";
 
-export const Route = createFileRoute("/")({ component: Index }); 
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Antri Pintar | Sistem Antrean Loket" },
+      { name: "description", content: "Ambil tiket dan pantau antrean layanan loket melalui Antri Pintar." },
+      { property: "og:title", content: "Antri Pintar | Sistem Antrean Loket" },
+      { property: "og:description", content: "Ambil tiket dan pantau antrean layanan loket melalui Antri Pintar." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: Index,
+});
 
 const SERVICES = [
   { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
@@ -50,9 +62,9 @@ function Index() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!form.nama.trim()) errs.nama = "Nama wajib diisi";
-    if (!form.nik.trim()) errs.nik = "NIK wajib diisi";
-    if (!form.layanan) errs.layanan = "Pilih layanan";
+    if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
+    if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
+    if (!form.layanan) errs["layanan"] = "Pilih layanan";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -331,7 +343,15 @@ function QrVisual({ seed }: { seed: string }) {
     }
     cells.push(row);
   }
-  const finder = (ox: number, oy: number) => { for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) cells[oy + y][ox + x] = x === 1 && y === 1 ? true : (x === 0 || x === 2 || y === 0 || y === 2); };
+  const finder = (ox: number, oy: number) => {
+    for (let y = 0; y < 3; y++) {
+      const row = cells[oy + y];
+      if (!row) continue;
+      for (let x = 0; x < 3; x++) {
+        row[ox + x] = x === 1 && y === 1 ? true : (x === 0 || x === 2 || y === 0 || y === 2);
+      }
+    }
+  };
   finder(0, 0); finder(size - 3, 0); finder(0, size - 3);
 
   return (

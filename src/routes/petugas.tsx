@@ -15,7 +15,7 @@ type QueueItem = {
   queue_number: string;
   customer_name: string;
   customer_id: string | null;
-  contact: string | null;
+  contact?: string | null;
   service_type: string;
   status: Status;
   loket?: string | null;
@@ -57,12 +57,12 @@ function Petugas() {
           <p className="text-sm text-slate-500 mt-2 mb-6">
             Halaman dashboard petugas membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
           </p>
-          <Link 
-            to="/login" 
+          <a
+            href="/login"
             className="inline-flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition active:scale-95"
           >
             Login Petugas
-          </Link>
+          </a>
           <Link 
             to="/" 
             className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition"
@@ -137,8 +137,11 @@ function Petugas() {
   const avgMin = useMemo(() => {
     const withTime = completed.filter(q => q.completed_at && q.created_at);
     if (!withTime.length) return "0";
-    const total = withTime.reduce((s, q) =>
-      s + (new Date(q.completed_at!).getTime() - new Date(q.created_at).getTime()) / 60000, 0);
+    const total = withTime.reduce((s, q) => {
+      const completedAt = q.completed_at;
+      if (!completedAt) return s;
+      return s + (new Date(completedAt).getTime() - new Date(q.created_at).getTime()) / 60000;
+    }, 0);
     return (total / withTime.length).toFixed(1);
   }, [completed]);
 
@@ -391,7 +394,7 @@ function Stat({ icon, tint, label, value, unit, big }: { icon: React.ReactNode, 
   };
   return (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${map[tint] || map.slate}`}>{icon}</div>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${map[tint] || map["slate"]}`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-[11px] font-medium text-slate-500 truncate">{label}</p>
         <p className={`font-black text-slate-800 leading-tight ${big ? "text-xl" : "text-2xl"}`}>
