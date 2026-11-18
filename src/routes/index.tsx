@@ -87,49 +87,32 @@ function Index() {
   const updateForm = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
    const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errs: Record<string, string> = {};
-    if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
-    if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
-    if (!form.layanan) errs["layanan"] = "Pilih layanan";
-    setErrors(errs);
-    if (Object.keys(errs).length) return;
+  e.preventDefault();
+  const errs: Record<string, string> = {};
+  if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
+  if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
+  if (!form.layanan) errs["layanan"] = "Pilih layanan";
+  setErrors(errs);
+  if (Object.keys(errs).length) return;
 
-    setLoading(true);
-    const today = new Date().toISOString().split("T")[0];
+  setLoading(true);
 
-    // 1. Hitung total antrean hari ini lewat VIEW (aman dari RLS)
-    const { count: todayCount } = await supabase
-      .from("public_queue_view")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", `${today}T00:00:00`);
+  // Panggil RPC (bypass privilege tabel → kebal Lovable override)
+  const { data, error } = await supabase.rpc('submit_queue', {
+    p_customer_name: form.nama,
+    p_customer_id:   form.nik,
+    p_contact:       form.kontak || null,
+    p_service_type:  form.layanan,
+  });
 
-    const { count: waitingCount } = await supabase
-      .from("public_queue_view")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "waiting");
-
-    const nextNum = (todayCount ?? 0) + 1;
-    const noAntrean = `A-${String(nextNum).padStart(3, "0")}`;
-
-    // 2. Insert langsung ke tabel 'queues' (tanpa RPC)
-    const { data, error } = await supabase.from("queues").insert([{
-      queue_number: noAntrean,
-      customer_name: form.nama,
-      customer_id: form.nik,
-      contact: form.kontak,
-      service_type: form.layanan,
-      status: "waiting",
-    }]).select().single();
-
-    setLoading(false);
-    if (error) {
-      setErrors({ form: error.message });
-    } else {
-      setPosition((waitingCount ?? 0) + 1);
-      setTicket(data);
-    }
-  };
+  setLoading(false);
+  if (error) {
+    setErrors({ form: error.message });
+  } else {
+    setPosition((data as any).position ?? null);
+    setTicket(data);
+  }
+};
 
   const saveToHistory = (t: any) => {
     const newItem: HistoryItem = {
