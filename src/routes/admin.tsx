@@ -8,7 +8,11 @@ import {
 
 export const Route = createFileRoute("/admin")({ component: Admin });
 
-const TZ = "Asia/Jayapura"; // WIT
+const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
+
+// 🔑 Helper: tanggal hari ini dalam WIT (format YYYY-MM-DD)
+const getTodayWIT = () =>
+  new Date().toLocaleDateString("en-CA", { timeZone: TZ });
 
 function Wave() {
   return (
@@ -20,7 +24,7 @@ function Wave() {
 
 function Admin() {
   const navigate = useNavigate();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayWIT(); // 🔑 FIX: pakai WIT
 
   const [session, setSession] = useState<any>(null);
   const [checking, setChecking] = useState(true);
@@ -62,7 +66,6 @@ function Admin() {
     setStats({ total: total || 0, waiting: waiting || 0, called: called || 0, completed: completed || 0, avgRating: Number(avg.toFixed(1)) });
   };
 
-  // ===== FETCH HANYA JIKA SUDAH LOGIN & ROLE ADMIN =====
   useEffect(() => {
     if (role !== "admin") return;
     fetchData();
@@ -133,7 +136,7 @@ function Admin() {
     );
   }
 
-  // ===== DASHBOARD ADMIN (hanya muncul kalau role === admin) =====
+  // ===== DASHBOARD ADMIN =====
   return (
     <div className="relative min-h-screen bg-[#F6F8F5] font-sans pb-14 overflow-x-hidden">
       <div className="absolute inset-0 -z-0 pointer-events-none">
@@ -177,6 +180,7 @@ function Admin() {
           <Stat icon={<Star className="w-5 h-5" />} tint="violet" label="Rata-rata Rating" value={stats.avgRating} unit="/ 5" highlight />
         </div>
 
+        {/* 🔑 FILTER PERIODE RENTANG */}
         <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 md:p-5">
           <div className="flex items-center gap-2 text-[#4A7C2F] mb-3">
             <Calendar className="w-5 h-5" />
@@ -188,22 +192,38 @@ function Admin() {
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-3 items-end">
             <div className="flex flex-col">
               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Dari Tanggal</label>
-              <input type="date" value={filterStart}
-                onChange={(e) => { const v = e.target.value; setFilterStart(v); if (v > filterEnd) setFilterEnd(v); }}
+              <input
+                type="date"
+                value={filterStart}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFilterStart(v);
+                  if (v > filterEnd) setFilterEnd(v);
+                }}
                 max={today}
-                className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none" />
+                className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+              />
             </div>
             <div className="hidden sm:flex items-center justify-center text-slate-400 font-bold text-xl pb-2">→</div>
             <div className="flex flex-col">
               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Sampai Tanggal</label>
-              <input type="date" value={filterEnd}
-                onChange={(e) => { const v = e.target.value; setFilterEnd(v); if (v < filterStart) setFilterStart(v); }}
+              <input
+                type="date"
+                value={filterEnd}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFilterEnd(v);
+                  if (v < filterStart) setFilterStart(v);
+                }}
                 max={today}
-                className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none" />
+                className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+              />
             </div>
             {!isTodayRange && (
-              <button onClick={() => { setFilterStart(today); setFilterEnd(today); }}
-                className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-4 py-2.5 rounded-xl transition self-end">
+              <button
+                onClick={() => { setFilterStart(today); setFilterEnd(today); }}
+                className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-4 py-2.5 rounded-xl transition self-end"
+              >
                 Reset Hari Ini
               </button>
             )}
@@ -289,13 +309,16 @@ function Admin() {
 
 function Stat({ icon, tint, label, value, unit, highlight }: { icon: React.ReactNode, tint: string, label: string, value: string | number, unit?: string, highlight?: boolean }) {
   const map: Record<string, string> = {
-    brand: "bg-[#4A7C2F]/10 text-[#4A7C2F]", blue: "bg-blue-50 text-blue-600",
-    amber: "bg-amber-50 text-amber-600", emerald: "bg-emerald-50 text-emerald-600",
-    violet: "bg-violet-50 text-violet-600", slate: "bg-slate-100 text-slate-600",
+    brand: "bg-[#4A7C2F]/10 text-[#4A7C2F]",
+    blue: "bg-blue-50 text-blue-600",
+    amber: "bg-amber-50 text-amber-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    violet: "bg-violet-50 text-violet-600",
+    slate: "bg-slate-100 text-slate-600",
   };
   return (
     <div className={`bg-white p-4 md:p-5 rounded-2xl border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${highlight ? "border-[#4A7C2F]/30 ring-1 ring-[#4A7C2F]/20 bg-[#4A7C2F]/[0.04]" : "border-slate-100 hover:border-[#4A7C2F]/20"}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map["brand"]}`}>{icon}</div>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map.brand}`}>{icon}</div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{label}</p>
       <p className="font-black text-slate-800 leading-tight mt-0.5 text-2xl tabular-nums">
         {value} {unit && <span className="text-[11px] font-semibold text-slate-400 ml-0.5">{unit}</span>}
