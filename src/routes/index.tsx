@@ -19,12 +19,23 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const GREEN = "#4A7C2F";
+
 const SERVICES = [
   { value: "NPWP", label: "NPWP", desc: "Nomor Pokok Wajib Pajak", color: "bg-indigo-500" },
   { value: "BP", label: "BP", desc: "Berkas Pensiun", color: "bg-sky-500" },
   { value: "HR", label: "HR", desc: "Human Resources", color: "bg-violet-500" },
   { value: "BPJS", label: "BPJS", desc: "Kesehatan", color: "bg-emerald-500" },
 ];
+
+/* ===================== WAVE PUTIH ===================== */
+function Wave() {
+  return (
+    <svg viewBox="0 0 400 42" preserveAspectRatio="none" className="absolute bottom-[-1px] left-0 w-full h-10 block">
+      <path fill="#ffffff" d="M0,22 C90,44 150,4 220,18 C290,32 340,8 400,22 L400,42 L0,42 Z" />
+    </svg>
+  );
+}
 
 function Index() {
   const [loading, setLoading] = useState(false);
@@ -89,10 +100,6 @@ function Index() {
 
   return (
     <div className="relative min-h-screen bg-[#F6F8F5] flex items-center justify-center p-4 overflow-hidden">
-      <div className="absolute inset-0 -z-0 pointer-events-none">
-        <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-emerald-200/50 blur-3xl" />
-        <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-lime-200/50 blur-3xl" />
-      </div>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}@keyframes draw{to{stroke-dashoffset:0}}circle[class*="draw"],path[class*="draw"]{stroke-dasharray:120;stroke-dashoffset:120}`}</style>
 
       <div className="relative w-full max-w-[420px] space-y-6">
@@ -111,43 +118,29 @@ function Index() {
   );
 }
 
-/* ===================== FORM CARD (ala BiteBox) ===================== */
+/* ===================== FORM CARD ===================== */
 function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
   return (
-    <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-emerald-50 overflow-hidden">
-      {/* HEADER rata kiri */}
-      <div className="px-7 pt-8 pb-2">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/30 flex items-center justify-center">
-            <Ticket className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-lg font-extrabold tracking-tight text-slate-800">Antri Pintar</span>
+    <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-[#4A7C2F]/10 overflow-hidden">
+      {/* HEADER HIJAU SOLID + WAVE */}
+      <div className="relative bg-[#4A7C2F] px-7 pt-10 pb-16 text-center overflow-hidden">
+        <div className="relative mx-auto mb-3 h-16 w-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center">
+          <Ticket className="h-8 w-8 text-white" />
         </div>
+        <h1 className="relative text-2xl font-extrabold tracking-tight text-white">Antri Pintar</h1>
+        <p className="relative mt-1 text-[13px] text-white/70">Sistem Pelayanan Loket Cepat & Modern</p>
+        <Wave />
+      </div>
 
-        <h1 className="text-[26px] leading-tight font-extrabold tracking-tight text-slate-800">
+      {/* BODY */}
+      <div className="px-7 pt-3 pb-7">
+        <h2 className="text-[22px] leading-tight font-extrabold tracking-tight text-slate-800">
           Let's get you
           <br />
-          <span className="italic text-emerald-600">Antrean cepat</span>
-        </h1>
-        <p className="mt-2 text-[13px] text-slate-400">Isi data diri untuk mengambil nomor antrean</p>
-      </div>
+          <span className="italic text-[#4A7C2F]">Antrean cepat</span>
+        </h2>
+        <p className="mt-2 mb-5 text-[13px] text-slate-400">Isi data diri untuk mengambil nomor antrean</p>
 
-      {/* HERO: preview layanan */}
-      <div className="px-7 py-4">
-        <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-4">
-          <p className="text-[13px] font-bold text-emerald-700 text-center">Layanan tersedia hari ini</p>
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {SERVICES.map(s => (
-              <span key={s.value} className="inline-flex items-center gap-1.5 rounded-full bg-white border border-emerald-100 px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-sm">
-                <span className={`h-2 w-2 rounded-full ${s.color}`} /> {s.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* FORM */}
-      <div className="px-7 pb-7">
         <form onSubmit={onSubmit} className="space-y-3.5">
           <Input label="Nama Lengkap" icon={<User className="h-4 w-4" />} error={errors.nama}>
             <input value={form.nama} onChange={e => updateForm("nama", e.target.value)} placeholder="Masukkan nama lengkap" className="w-full bg-transparent outline-none text-[15px] text-slate-800 placeholder:text-slate-400" />
@@ -162,9 +155,8 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
 
           {errors.form && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 text-center">{errors.form}</p>}
 
-          {/* Tombol ala BiteBox: hijau + panah kanan */}
           <button type="submit" disabled={loading}
-            className="group relative w-full mt-1 rounded-2xl bg-[#4A7C2F] hover:bg-[#3d6826] px-5 py-4 text-white font-bold text-[15px] shadow-lg shadow-emerald-500/30 transition-all hover:brightness-105 active:scale-[.98] disabled:opacity-60 disabled:active:scale-100 flex items-center justify-between">
+            className="group relative w-full mt-1 rounded-2xl bg-[#4A7C2F] hover:bg-[#3d6826] px-5 py-4 text-white font-bold text-[15px] shadow-lg shadow-[#4A7C2F]/30 transition-all active:scale-[.98] disabled:opacity-60 disabled:active:scale-100 flex items-center justify-between">
             <span className="flex items-center gap-2">
               {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Memproses…</> : <><Sparkles className="h-5 w-5" /> Ambil Antrean</>}
             </span>
@@ -172,7 +164,6 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
           </button>
         </form>
 
-        {/* Divider */}
         <div className="flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-slate-200" />
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Atau</span>
@@ -180,7 +171,7 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
         </div>
 
         <div className="text-center">
-          <Link to="/petugas" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-emerald-600 transition-colors">
+          <Link to="/petugas" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-[#4A7C2F] transition-colors">
             <ShieldCheck className="h-4 w-4" /> Petugas? Masuk Dashboard <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -189,7 +180,7 @@ function FormCard({ form, updateForm, errors, loading, onSubmit }: any) {
   );
 }
 
-/* ===================== INPUT (rounded ala BiteBox) ===================== */
+/* ===================== INPUT ===================== */
 function Input({ label, icon, error, optional, children }: any) {
   return (
     <div>
@@ -197,7 +188,7 @@ function Input({ label, icon, error, optional, children }: any) {
         <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</label>
         {optional && <span className="text-[10px] text-slate-400">opsional</span>}
       </div>
-      <div className={`flex items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 shadow-sm transition-all ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100"}`}>
+      <div className={`flex items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 shadow-sm transition-all ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200 focus-within:border-[#4A7C2F] focus-within:ring-2 focus-within:ring-[#4A7C2F]/20"}`}>
         <span className="text-slate-400 shrink-0">{icon}</span>
         {children}
       </div>
@@ -229,7 +220,7 @@ function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v
     setPos({ top: openUp ? r.top - maxH - 8 : r.bottom + 8, left, width, maxH });
   }, []);
 
-  useEffect(() => { if (isOpen) { updatePos(); } }, [isOpen, updatePos]);
+  useEffect(() => { if (isOpen) updatePos(); }, [isOpen, updatePos]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -255,7 +246,7 @@ function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v
     <div>
       <label className="mb-1.5 block px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Pilih Layanan</label>
       <button ref={btnRef} type="button" onClick={() => setIsOpen(o => !o)}
-        className={`flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200"} ${isOpen ? "border-emerald-400 ring-2 ring-emerald-100" : ""}`}>
+        className={`flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200"} ${isOpen ? "border-[#4A7C2F] ring-2 ring-[#4A7C2F]/20" : ""}`}>
         <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
         <span className={`flex-1 text-[15px] ${selected ? "text-slate-800" : "text-slate-400"}`}>{selected ? selected.label : "-- Pilih Layanan --"}</span>
         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -267,13 +258,13 @@ function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH, overscrollBehavior: "contain" }}>
           {SERVICES.map(s => (
             <button key={s.value} type="button" onClick={() => handleSelect(s.value)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${value === s.value ? "bg-emerald-50" : "hover:bg-slate-50"}`}>
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${value === s.value ? "bg-[#4A7C2F]/10" : "hover:bg-slate-50"}`}>
               <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${s.color}`} />
               <span className="flex-1 min-w-0">
                 <span className="block text-[14px] font-semibold text-slate-800 truncate">{s.label}</span>
                 <span className="block text-[11px] text-slate-500 truncate">{s.desc}</span>
               </span>
-              {value === s.value && <Check className="h-4 w-4 text-emerald-600 shrink-0" />}
+              {value === s.value && <Check className="h-4 w-4 text-[#4A7C2F] shrink-0" />}
             </button>
           ))}
         </div>,
@@ -290,22 +281,24 @@ function TicketCard({ ticket, position, onReset }: any) {
   const time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-emerald-50 overflow-hidden">
-      <div className="relative px-7 pt-8 pb-6 text-center bg-gradient-to-b from-emerald-50/70 to-white">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30">
+    <div className="animate-[fadeUp_.5s_ease] rounded-[32px] bg-white shadow-[0_24px_70px_-30px_rgba(20,40,30,.25)] border border-[#4A7C2F]/10 overflow-hidden">
+      {/* HEADER HIJAU SOLID + WAVE */}
+      <div className="relative bg-[#4A7C2F] px-7 pt-10 pb-16 text-center overflow-hidden">
+        <div className="relative mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 border border-white/25">
           <svg viewBox="0 0 52 52" className="h-9 w-9">
             <circle cx="26" cy="26" r="24" fill="none" stroke="white" strokeWidth="3" className="animate-[draw_.6s_ease_.1s_both]" />
             <path fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" d="M16 27l7 7 14-15" className="animate-[draw_.5s_ease_.5s_both]" />
           </svg>
         </div>
-        <h2 className="text-lg font-extrabold text-slate-800">Antrean Berhasil Diambil!</h2>
-        <p className="text-[13px] text-slate-500 mt-1">Silakan menunggu nomor Anda dipanggil</p>
+        <h2 className="relative text-xl font-extrabold text-white">Antrean Berhasil!</h2>
+        <p className="relative mt-1 text-[13px] text-white/70">Silakan menunggu nomor Anda dipanggil</p>
+        <Wave />
       </div>
 
-      <div className="px-7">
+      <div className="px-7 pt-3">
         <div className="rounded-2xl border border-slate-100 bg-slate-50 py-5 text-center">
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Nomor Antrean</p>
-          <p className="mt-1 bg-[#4A7C2F] hover:bg-[#3d6826] bg-clip-text text-6xl font-black tracking-tighter text-transparent">{ticket.queue_number}</p>
+          <p className="mt-1 text-6xl font-black tracking-tighter text-[#4A7C2F]">{ticket.queue_number}</p>
         </div>
       </div>
 
@@ -339,7 +332,7 @@ function Row({ icon, label, value, accent }: any) {
     <div className="flex items-center gap-2">
       <span className="text-slate-400">{icon}</span>
       <span className="text-slate-400">{label}:</span>
-      <span className={`font-semibold ${accent ? "text-emerald-600" : "text-slate-700"}`}>{value}</span>
+      <span className={`font-semibold ${accent ? "text-[#4A7C2F]" : "text-slate-700"}`}>{value}</span>
     </div>
   );
 }
