@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_counters: {
+        Row: {
+          current_number: number | null
+          date: string
+        }
+        Insert: {
+          current_number?: number | null
+          date?: string
+        }
+        Update: {
+          current_number?: number | null
+          date?: string
+        }
+        Relationships: []
+      }
       feedbacks: {
         Row: {
           comment: string | null
@@ -37,6 +52,13 @@ export type Database = {
           rating?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "feedbacks_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: true
+            referencedRelation: "public_queue_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "feedbacks_queue_id_fkey"
             columns: ["queue_id"]
@@ -68,38 +90,41 @@ export type Database = {
         Row: {
           called_at: string | null
           completed_at: string | null
-          created_at: string
-          customer_id: string
+          contact: string | null
+          created_at: string | null
+          customer_id: string | null
           customer_name: string
           id: string
-          queue_day: string
+          loket: string | null
           queue_number: string
           service_type: string
-          status: string
+          status: string | null
         }
         Insert: {
           called_at?: string | null
           completed_at?: string | null
-          created_at?: string
-          customer_id: string
+          contact?: string | null
+          created_at?: string | null
+          customer_id?: string | null
           customer_name: string
           id?: string
-          queue_day?: string
+          loket?: string | null
           queue_number: string
           service_type: string
-          status?: string
+          status?: string | null
         }
         Update: {
           called_at?: string | null
           completed_at?: string | null
-          created_at?: string
-          customer_id?: string
+          contact?: string | null
+          created_at?: string | null
+          customer_id?: string | null
           customer_name?: string
           id?: string
-          queue_day?: string
+          loket?: string | null
           queue_number?: string
           service_type?: string
-          status?: string
+          status?: string | null
         }
         Relationships: []
       }
@@ -123,9 +148,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_queue_view: {
+        Row: {
+          called_at: string | null
+          completed_at: string | null
+          created_at: string | null
+          customer_name: string | null
+          id: string | null
+          loket: string | null
+          queue_number: string | null
+          service_type: string | null
+          status: string | null
+        }
+        Insert: {
+          called_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          id?: string | null
+          loket?: string | null
+          queue_number?: string | null
+          service_type?: string | null
+          status?: string | null
+        }
+        Update: {
+          called_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          customer_name?: string | null
+          id?: string | null
+          loket?: string | null
+          queue_number?: string | null
+          service_type?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      get_next_queue_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
