@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
-  ArrowLeft, CheckCircle, Volume2, Users, Clock, Activity, LogOut,
+  ArrowLeft, CheckCircle, Volume2, Clock, Activity, LogOut,
   Zap, Ticket, RefreshCw, Search, ChevronsRight, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +25,15 @@ type QueueItem = {
 };
 
 const PAGE_SIZE = 5;
+
+/* ===================== WAVE PUTIH ===================== */
+function Wave() {
+  return (
+    <svg viewBox="0 0 400 42" preserveAspectRatio="none" className="absolute bottom-[-1px] left-0 w-full h-10 block">
+      <path fill="#F6F8F5" d="M0,22 C90,44 150,4 220,18 C290,32 340,8 400,22 L400,42 L0,42 Z" />
+    </svg>
+  );
+}
 
 function Petugas() {
   const navigate = useNavigate();
@@ -157,7 +166,7 @@ function Petugas() {
   const statusBadge = (q: QueueItem) => {
     const currentLoket = q.loket || loket;
     switch (q.status) {
-      case "called": return <span className="inline-flex items-center gap-1.5 text-blue-700"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />Dipanggil di Loket {currentLoket}</span>;
+      case "called": return <span className="inline-flex items-center gap-1.5 bg-[#4A7C2F] text-white px-2.5 py-1 rounded-md text-xs font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />Loket {currentLoket}</span>;
       case "waiting": return <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-md text-xs font-semibold">Menunggu</span>;
       case "completed": return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs font-semibold">Selesai</span>;
       case "skipped": return <span className="bg-slate-100 text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md text-xs font-semibold">Dilewat</span>;
@@ -171,24 +180,33 @@ function Petugas() {
 
   // CONDITIONAL RETURN SETELAH SEMUA HOOKS
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><p>Memuat...</p></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F8F5]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-[#4A7C2F] flex items-center justify-center animate-pulse">
+            <Ticket className="w-6 h-6 text-white" />
+          </div>
+          <p className="text-sm font-semibold text-slate-500">Memuat dashboard…</p>
+        </div>
+      </div>
+    );
   }
 
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="text-center p-6 bg-white rounded-2xl shadow-lg border border-slate-200 max-w-sm w-full">
-          <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F8F5] p-4">
+        <div className="text-center p-8 bg-white rounded-3xl shadow-xl border border-[#4A7C2F]/10 max-w-sm w-full">
+          <div className="w-16 h-16 bg-[#4A7C2F]/10 text-[#4A7C2F] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <LogOut className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-slate-800">Akses Ditolak</h2>
+          <h2 className="text-xl font-extrabold text-slate-800">Akses Ditolak</h2>
           <p className="text-sm text-slate-500 mt-2 mb-6">
-            Halaman Admin membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
+            Halaman petugas membutuhkan akses terverifikasi. Silakan login terlebih dahulu.
           </p>
-          <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full bg-[#4A7C2F] hover:bg-[#3d6826] text-white px-6 py-3 rounded-xl font-bold transition active:scale-95">
+          <Link to="/login" className="inline-flex items-center justify-center gap-2 w-full bg-[#4A7C2F] hover:bg-[#3d6826] text-white px-6 py-3.5 rounded-2xl font-bold transition active:scale-95">
             Login Petugas
           </Link>
-          <Link to="/" className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-slate-800 px-6 py-2 rounded-xl font-semibold transition">
+          <Link to="/" className="inline-flex items-center justify-center gap-2 w-full mt-3 text-slate-600 hover:text-[#4A7C2F] px-6 py-2 rounded-xl font-semibold transition">
             <ArrowLeft className="w-4 h-4" /> Kembali ke Beranda
           </Link>
         </div>
@@ -198,115 +216,138 @@ function Petugas() {
 
   // RENDER UTAMA
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans pb-12">
-      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-slate-800">Dashboard Petugas</h1>
-              <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Aktif Melayani
-              </span>
+    <div className="relative min-h-screen bg-[#F6F8F5] font-sans pb-14 overflow-x-hidden">
+      {/* dekorasi background */}
+      <div className="absolute inset-0 -z-0 pointer-events-none">
+        <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(#e2e8f0 1px, transparent 1px)", backgroundSize: "22px 22px", maskImage: "radial-gradient(ellipse at top, black 30%, transparent 75%)" }} />
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#4A7C2F]/10 blur-3xl" />
+      </div>
+
+      {/* ===== HEADER HIJAU + WAVE ===== */}
+      <header className="relative bg-[#4A7C2F] px-5 md:px-8 pt-5 pb-16 overflow-hidden">
+        <div className="absolute -top-16 -left-10 w-56 h-56 rounded-full bg-white/10 blur-2xl" />
+        <div className="relative flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" className="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition shrink-0">
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg md:text-xl font-extrabold tracking-tight text-white">Dashboard Petugas</h1>
+                <span className="inline-flex items-center gap-1.5 bg-white/15 border border-white/25 text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-lime-300 animate-pulse" />LIVE
+                </span>
+              </div>
+              <p className="text-[12px] text-white/70 mt-0.5 truncate">
+                Loket {loket} • {session.user?.email || "Petugas"}
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Loket {loket} • Petugas: {session.user?.email || "User"} • Layanan Perizinan & NPP
-            </p>
+          </div>
+
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="text-right hidden sm:block mr-1">
+              <p className="text-[11px] text-white/60 capitalize leading-none">{dateStr}</p>
+              <p className="text-sm font-bold text-white tabular-nums mt-1">{timeStr} WIB</p>
+            </div>
+            <button className="flex items-center gap-2 text-[13px] font-semibold text-white bg-white/15 hover:bg-white/25 border border-white/20 px-3.5 py-2.5 rounded-xl transition active:scale-95">
+              <RefreshCw className="w-4 h-4" /> <span className="hidden md:inline">Pindah Loket</span>
+            </button>
+            <button 
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate({ to: "/" });
+              }} 
+              className="flex items-center gap-2 text-[13px] font-semibold text-[#4A7C2F] bg-white hover:bg-slate-50 px-3.5 py-2.5 rounded-xl transition active:scale-95 shadow-sm"
+            >
+              <LogOut className="w-4 h-4" /> <span className="hidden md:inline">Keluar</span>
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs text-slate-500 capitalize">{dateStr}</p>
-            <p className="text-sm font-bold text-slate-800 tabular-nums">{timeStr} WIB</p>
-          </div>
-          <button className="flex items-center gap-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-lg transition">
-            <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Pindah Loket</span>
-          </button>
-          <button 
-            onClick={async () => {
-              await supabase.auth.signOut();
-              navigate({ to: "/" });
-            }} 
-            className="flex items-center gap-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-lg transition"
-          >
-            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Keluar</span>
-          </button>
-        </div>
+        <Wave />
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 -mt-4 space-y-6">
+        {/* ===== STAT CARDS ===== */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
           <Stat icon={<Ticket className="w-5 h-5" />} tint="slate" label="Total Tiket" value={queues.length} unit="orang" />
-          <Stat icon={<Activity className="w-5 h-5" />} tint="blue" label="Aktif Dipanggil" value={current?.queue_number || "—"} big />
+          <Stat icon={<Activity className="w-5 h-5" />} tint="brand" label="Aktif Dipanggil" value={current?.queue_number || "—"} big highlight />
           <Stat icon={<Clock className="w-5 h-5" />} tint="amber" label="Sisa Menunggu" value={waiting.length} unit="antrean" />
           <Stat icon={<CheckCircle className="w-5 h-5" />} tint="emerald" label="Telah Selesai" value={completed.length} unit="selesai" />
           <Stat icon={<Zap className="w-5 h-5" />} tint="violet" label="Rerata Layanan" value={`${avgMin}`} unit="menit" />
         </div>
 
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col lg:flex-row items-center gap-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600" />
-          <div className="flex items-center gap-6 flex-1 w-full">
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-6 py-4 text-center shrink-0">
-              <p className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">Nomor Antrean</p>
-              <p className={`text-4xl font-black leading-tight ${current ? "text-blue-600" : "text-slate-300"}`}>
-                {current?.queue_number || "---"}
-              </p>
-              <p className="text-[10px] text-slate-400 font-semibold">Loket {loket}</p>
-            </div>
-            <div className="min-w-0 flex-1">
-              {current ? (
-                <>
-                  <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 flex-wrap">
-                    <span className="bg-blue-50 text-blue-600 font-semibold px-2 py-0.5 rounded">Sedang Dipanggil</span>
-                    {current.created_at && (
-                      <span>• Ambil: {new Date(current.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB {waitMin !== null && `(Tunggu ${waitMin} mnt)`}</span>
-                    )}
-                  </div>
-                  <h2 className="text-2xl font-bold text-slate-800 truncate">{current.customer_name}</h2>
-                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400" />
-                    Layanan: {current.service_type} &nbsp;•&nbsp; ID: {current.id.slice(0, 8).toUpperCase()}
-                  </p>
-                </>
-              ) : (
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-400">Belum ada antrean dipanggil</h2>
-                  <p className="text-sm text-slate-400 mt-1">Tekan "Panggil Berikutnya" untuk memulai.</p>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* ===== HERO PANEL PANGGILAN ===== */}
+        <section className="relative rounded-3xl bg-gradient-to-br from-[#4A7C2F] to-[#3a6224] shadow-xl shadow-[#4A7C2F]/25 p-6 md:p-7 overflow-hidden">
+          <div className="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-20 -left-10 w-48 h-48 rounded-full bg-lime-300/10 blur-2xl" />
 
-          {current && (
-            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-              <button onClick={() => suaraPanggilan(current.queue_number, current.customer_name)}
-                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-bold transition active:scale-95 text-sm">
-                <Volume2 className="w-4 h-4" /> Panggil
-              </button>
-              <button onClick={() => updateStatus(current.id, "completed", current.queue_number, current.customer_name)}
-                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold transition active:scale-95 text-sm">
-                <CheckCircle className="w-4 h-4" /> Selesai
-              </button>
-              <button onClick={() => updateStatus(current.id, "skipped", current.queue_number, current.customer_name)} title="Lewati"
-                className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl transition active:scale-95">
-                <ChevronsRight className="w-4 h-4" />
+          {current ? (
+            <div className="relative flex flex-col lg:flex-row items-center gap-6">
+              {/* Nomor raksasa */}
+              <div className="bg-white/10 border border-white/20 rounded-2xl px-7 py-5 text-center shrink-0 backdrop-blur">
+                <p className="text-[10px] font-bold tracking-widest text-white/60 uppercase">Nomor Antrean</p>
+                <p className="text-5xl md:text-6xl font-black leading-tight text-white tracking-tight mt-1">{current.queue_number}</p>
+                <p className="text-[11px] text-white/60 font-semibold mt-1">Loket {loket}</p>
+              </div>
+
+              {/* Info pelanggan */}
+              <div className="min-w-0 flex-1 text-center lg:text-left">
+                <span className="inline-flex items-center gap-1.5 bg-lime-300/20 border border-lime-300/30 text-lime-100 text-[11px] font-bold px-2.5 py-1 rounded-full mb-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-lime-300 animate-pulse" />Sedang Dipanggil
+                </span>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-white truncate">{current.customer_name}</h2>
+                <div className="flex items-center justify-center lg:justify-start gap-2 mt-2 flex-wrap text-[13px] text-white/70">
+                  <span className="bg-white/10 border border-white/15 rounded-lg px-2.5 py-1 font-semibold text-white">{current.service_type}</span>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Tunggu {waitMin ?? 0} mnt</span>
+                  <span>•</span>
+                  <span>ID: {current.id.slice(0, 8).toUpperCase()}</span>
+                </div>
+              </div>
+
+              {/* Aksi */}
+              <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:flex-col">
+                <button onClick={() => suaraPanggilan(current.queue_number, current.customer_name)}
+                  className="flex-1 lg:w-full flex items-center justify-center gap-2 bg-white text-[#4A7C2F] hover:bg-slate-50 px-5 py-3 rounded-xl font-bold transition active:scale-95 text-sm shadow-lg">
+                  <Volume2 className="w-4 h-4" /> Panggil
+                </button>
+                <button onClick={() => updateStatus(current.id, "completed", current.queue_number, current.customer_name)}
+                  className="flex-1 lg:w-full flex items-center justify-center gap-2 bg-lime-400 text-[#2d4a1c] hover:bg-lime-300 px-5 py-3 rounded-xl font-bold transition active:scale-95 text-sm shadow-lg">
+                  <CheckCircle className="w-4 h-4" /> Selesai
+                </button>
+                <button onClick={() => updateStatus(current.id, "skipped", current.queue_number, current.customer_name)} title="Lewati"
+                  className="w-12 h-12 flex items-center justify-center bg-white/10 border border-white/20 hover:bg-white/20 text-white rounded-xl transition active:scale-95 shrink-0">
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Empty state ilustratif */
+            <div className="relative flex flex-col items-center text-center py-4">
+              <div className="w-20 h-20 rounded-3xl bg-white/10 border border-white/20 flex items-center justify-center mb-4">
+                <Volume2 className="w-9 h-9 text-white/80" />
+              </div>
+              <h2 className="text-2xl font-extrabold text-white">Belum ada antrean dipanggil</h2>
+              <p className="text-sm text-white/60 mt-1 mb-5">Mulai panggil antrean pertama untuk hari ini.</p>
+              <button onClick={callNext} disabled={!waiting.length}
+                className="flex items-center gap-2 bg-white text-[#4A7C2F] hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-6 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 shadow-lg">
+                <Volume2 className="w-4 h-4" /> Panggil Berikutnya ({waiting[0]?.queue_number || "—"})
               </button>
             </div>
           )}
         </section>
 
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        {/* ===== TABEL ANTREAN ===== */}
+        <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 md:p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Daftar Antrean Hari Ini</h2>
-              <p className="text-xs text-slate-500">Kelola urutan antrean pengunjung pada loket pelayanan aktif</p>
+              <h2 className="text-lg font-extrabold text-slate-800 tracking-tight">Daftar Antrean Hari Ini</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Kelola urutan antrean pengunjung pada loket pelayanan aktif</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {([["all", "Semua"], ["waiting", "Menunggu"], ["completed", "Selesai"], ["skipped", "Dilewat"]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => { setFilter(k); setPage(0); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${filter === k ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition border ${filter === k ? "bg-[#4A7C2F] text-white border-[#4A7C2F] shadow-md shadow-[#4A7C2F]/25" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
                   {label} ({counts[k]})
                 </button>
               ))}
@@ -315,52 +356,60 @@ function Petugas() {
 
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
                 placeholder="Cari nama atau nomor tiket..."
-                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none transition" />
             </div>
             <button onClick={callNext} disabled={!waiting.length}
-              className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95">
+              className="flex items-center justify-center gap-2 bg-[#4A7C2F] hover:bg-[#3d6826] disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl font-bold text-sm transition active:scale-95 shadow-md shadow-[#4A7C2F]/25">
               <Volume2 className="w-4 h-4" /> Panggil Berikutnya ({waiting[0]?.queue_number || "—" })
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <div className="overflow-x-auto rounded-2xl border border-slate-100">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+              <thead className="bg-[#4A7C2F]/5 text-[#4A7C2F] text-[11px] uppercase tracking-wider">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold">No. Tiket</th>
-                  <th className="text-left px-4 py-3 font-semibold">Nama Pengunjung</th>
-                  <th className="text-left px-4 py-3 font-semibold">Layanan</th>
-                  <th className="text-left px-4 py-3 font-semibold">Waktu Ambil</th>
-                  <th className="text-left px-4 py-3 font-semibold">Status</th>
-                  <th className="text-right px-4 py-3 font-semibold">Aksi</th>
+                  <th className="text-left px-4 py-3 font-bold">No. Tiket</th>
+                  <th className="text-left px-4 py-3 font-bold">Nama Pengunjung</th>
+                  <th className="text-left px-4 py-3 font-bold">Layanan</th>
+                  <th className="text-left px-4 py-3 font-bold">Waktu Ambil</th>
+                  <th className="text-left px-4 py-3 font-bold">Status</th>
+                  <th className="text-right px-4 py-3 font-bold">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Memuat data...</td></tr>
-                ) : paged.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">Tidak ada data antrean.</td></tr>
+                {paged.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+                          <Ticket className="w-6 h-6 text-slate-300" />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-400">Tidak ada data antrean</p>
+                        <p className="text-xs text-slate-400">Antrean baru akan muncul otomatis di sini.</p>
+                      </div>
+                    </td>
+                  </tr>
                 ) : paged.map(q => (
-                  <tr key={q.id} className="hover:bg-slate-50/60 transition">
-                    <td className="px-4 py-3"><span className="bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-md text-xs">{q.queue_number}</span></td>
+                  <tr key={q.id} className="hover:bg-[#4A7C2F]/[0.03] transition">
+                    <td className="px-4 py-3"><span className="bg-[#4A7C2F]/10 text-[#4A7C2F] font-bold px-2.5 py-1 rounded-lg text-xs">{q.queue_number}</span></td>
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800">{q.customer_name}</p>
+                      <p className="font-bold text-slate-800">{q.customer_name}</p>
                       <p className="text-xs text-slate-400">ID: {maskNik(q.customer_id)}</p>
                     </td>
-                    <td className="px-4 py-3"><span className={`border px-2.5 py-1 rounded-md text-xs font-semibold ${serviceBadge(q.service_type)}`}>{q.service_type}</span></td>
+                    <td className="px-4 py-3"><span className={`border px-2.5 py-1 rounded-lg text-xs font-bold ${serviceBadge(q.service_type)}`}>{q.service_type}</span></td>
                     <td className="px-4 py-3 text-slate-600 tabular-nums text-xs">{q.created_at ? new Date(q.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) : "—"} WIB</td>
                     <td className="px-4 py-3">{statusBadge(q)}</td>
                     <td className="px-4 py-3 text-right">
                       {q.status === "called" && (
-                        <button onClick={() => suaraPanggilan(q.queue_number, q.customer_name)} className="inline-flex items-center gap-1.5 text-slate-600 hover:text-blue-600 font-semibold text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition"><Volume2 className="w-3.5 h-3.5" />Panggil Ulang</button>
+                        <button onClick={() => suaraPanggilan(q.queue_number, q.customer_name)} className="inline-flex items-center gap-1.5 text-[#4A7C2F] hover:bg-[#4A7C2F]/10 font-bold text-xs border border-[#4A7C2F]/30 rounded-lg px-3 py-1.5 transition"><Volume2 className="w-3.5 h-3.5" />Panggil Ulang</button>
                       )}
                       {(q.status === "waiting" || q.status === "skipped") && (
-                        <button onClick={() => updateStatus(q.id, "called", q.queue_number, q.customer_name)} className="inline-flex items-center gap-1.5 text-blue-600 hover:text-white font-semibold text-xs border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-600 transition"><Volume2 className="w-3.5 h-3.5" />Panggil</button>
+                        <button onClick={() => updateStatus(q.id, "called", q.queue_number, q.customer_name)} className="inline-flex items-center gap-1.5 bg-[#4A7C2F] hover:bg-[#3d6826] text-white font-bold text-xs rounded-lg px-3 py-1.5 transition active:scale-95"><Volume2 className="w-3.5 h-3.5" />Panggil</button>
                       )}
-                      {q.status === "completed" && <span className="text-xs text-slate-400">—</span>}
+                      {q.status === "completed" && <span className="text-xs text-slate-300">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -381,21 +430,23 @@ function Petugas() {
   );
 }
 
-function Stat({ icon, tint, label, value, unit, big }: { icon: React.ReactNode, tint: string, label: string, value: string | number, unit?: string, big?: boolean }) {
+/* ===================== STAT CARD ===================== */
+function Stat({ icon, tint, label, value, unit, big, highlight }: { icon: React.ReactNode, tint: string, label: string, value: string | number, unit?: string, big?: boolean, highlight?: boolean }) {
   const map: Record<string, string> = {
-    slate: "bg-slate-50 text-slate-600", blue: "bg-blue-50 text-blue-600",
-    amber: "bg-amber-50 text-amber-600", emerald: "bg-emerald-50 text-emerald-600",
+    slate: "bg-slate-100 text-slate-600",
+    brand: "bg-[#4A7C2F]/10 text-[#4A7C2F]",
+    blue: "bg-blue-50 text-blue-600",
+    amber: "bg-amber-50 text-amber-600",
+    emerald: "bg-emerald-50 text-emerald-600",
     violet: "bg-violet-50 text-violet-600",
   };
   return (
-    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${map[tint] || map.slate}`}>{icon}</div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium text-slate-500 truncate">{label}</p>
-        <p className={`font-black text-slate-800 leading-tight ${big ? "text-xl" : "text-2xl"}`}>
-          {value} {unit && !big && <span className="text-[11px] font-medium text-slate-400 ml-0.5">{unit}</span>}
-        </p>
-      </div>
+    <div className={`bg-white p-4 md:p-5 rounded-2xl border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${highlight ? "border-[#4A7C2F]/30 ring-1 ring-[#4A7C2F]/20 bg-[#4A7C2F]/[0.04]" : "border-slate-100 hover:border-[#4A7C2F]/20"}`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-3 ${map[tint] || map.slate}`}>{icon}</div>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">{label}</p>
+      <p className={`font-black text-slate-800 leading-tight mt-0.5 ${big ? "text-xl" : "text-2xl"} tabular-nums`}>
+        {value} {unit && !big && <span className="text-[11px] font-semibold text-slate-400 ml-0.5">{unit}</span>}
+      </p>
     </div>
   );
 }
