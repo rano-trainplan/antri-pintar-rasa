@@ -6,7 +6,9 @@ import {
   TrendingUp, Ticket, ShieldCheck, Activity, Calendar,
 } from "lucide-react";
 
-export const Route = createFileRoute("/admin")({ component: Admin }); 
+export const Route = createFileRoute("/admin")({ component: Admin });
+
+const TZ = "Asia/Jayapura"; // WIT - Maluku Utara
 
 function Wave() {
   return (
@@ -18,10 +20,12 @@ function Wave() {
 
 function Admin() {
   const navigate = useNavigate();
+  const today = new Date().toISOString().split("T")[0];
 
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split("T")[0]); // FASE 2
+  const [filterStart, setFilterStart] = useState(today);
+  const [filterEnd, setFilterEnd] = useState(today);
   const [stats, setStats] = useState({ total: 0, waiting: 0, called: 0, completed: 0, avgRating: 0 });
   const [services, setServices] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -34,8 +38,8 @@ function Admin() {
 
   const fetchData = async () => {
     if (!session) return;
-    const startOfDay = `${filterDate}T00:00:00`;
-    const endOfDay = `${filterDate}T23:59:59`;
+    const startOfDay = `${filterStart}T00:00:00`;
+    const endOfDay = `${filterEnd}T23:59:59`;
 
     const { count: total } = await supabase.from("queues").select("id", { count: "exact", head: true }).gte("created_at", startOfDay).lte("created_at", endOfDay);
     const { count: waiting } = await supabase.from("queues").select("id", { count: "exact", head: true }).eq("status", "waiting").gte("created_at", startOfDay).lte("created_at", endOfDay);
@@ -51,7 +55,7 @@ function Admin() {
     const maxVal = Math.max(...Object.values(svcCount), 1);
     setServices(Object.entries(svcCount).map(([name, count]) => ({ name, count, pct: (count / maxVal) * 100 })));
 
-    const { data: hist } = await supabase.from("queues").select("*, feedbacks(rating)").gte("created_at", startOfDay).lte("created_at", endOfDay).order("created_at", { ascending: false }).limit(20);
+    const { data: hist } = await supabase.from("queues").select("*, feedbacks(rating)").gte("created_at", startOfDay).lte("created_at", endOfDay).order("created_at", { ascending: false }).limit(30);
     setHistory(hist || []);
     setStats({ total: total || 0, waiting: waiting || 0, called: called || 0, completed: completed || 0, avgRating: Number(avg.toFixed(1)) });
   };
@@ -64,10 +68,10 @@ function Admin() {
       .on("postgres_changes", { event: "*", schema: "public", table: "feedbacks" }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [session, filterDate]);
+  }, [session, filterStart, filterEnd]);
 
-  const isToday = filterDate === new Date().toISOString().split("T")[0];
-  const filterDateDisplay = new Date(filterDate).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const isTodayRange = filterStart === today && filterEnd === today;
+  const formatTanggal = (iso: string) => new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 
   if (loading) {
     return (
@@ -123,7 +127,7 @@ function Admin() {
                   <span className="w-1.5 h-1.5 rounded-full bg-lime-300 animate-pulse" />ADMIN
                 </span>
               </div>
-              <p className="text-[12px] text-white/70 mt-0.5 truncate">Monitoring real-time & laporan harian • {session.user?.email}</p>
+              <p className="text-[12px] text-white/70 mt-0.5 truncate">Monitoring real-time & laporan • {session.user?.email}</p>
             </div>
           </div>
           <button
@@ -138,36 +142,58 @@ function Admin() {
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 md:px-8 -mt-4 space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-          <Stat icon={<Ticket className="w-5 h-5" />} tint="brand" label="Total Hari Ini" value={stats.total} unit="orang" />
+          <Stat icon={<Ticket className="w-5 h-5" />} tint="brand" label="Total Periode" value={stats.total} unit="orang" />
           <Stat icon={<Clock className="w-5 h-5" />} tint="amber" label="Menunggu" value={stats.waiting} unit="antrean" />
           <Stat icon={<Activity className="w-5 h-5" />} tint="blue" label="Diproses" value={stats.called} unit="aktif" />
           <Stat icon={<CheckCircle className="w-5 h-5" />} tint="emerald" label="Selesai" value={stats.completed} unit="selesai" />
           <Stat icon={<Star className="w-5 h-5" />} tint="violet" label="Rata-rata Rating" value={stats.avgRating} unit="/ 5" highlight />
         </div>
 
-        {/* FASE 2: Date Filter */}
+        {/* FILTER PERIODE */}
         <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 md:p-5">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="flex items-center gap-2 text-[#4A7C2F] shrink-0">
-              <Calendar className="w-5 h-5" />
-              <span className="text-sm font-bold">Periode Laporan:</span>
+          <div className="flex items-center gap-2 text-[#4A7C2F] mb-3">
+            <Calendar className="w-5 h-5" />
+            <span className="text-sm font-bold">Periode Laporan (WIT):</span>
+            <span className="text-xs font-semibold text-slate-500 ml-auto">
+              {isTodayRange ? "📅 Hari ini" : `📅 ${formatTanggal(filterStart)} — ${formatTanggal(filterEnd)}`}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-3 items-end">
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Dari Tanggal</label>
+              <input
+                type="date"
+                value={filterStart}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFilterStart(v);
+                  if (v > filterEnd) setFilterEnd(v);
+                }}
+                max={today}
+                className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+              />
             </div>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              max={new Date().toISOString().split("T")[0]}
-              className="flex-1 bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
-            />
-            <div className="text-xs font-semibold text-slate-500 shrink-0">
-              {isToday ? "📅 Hari ini" : `📅 ${filterDateDisplay}`}
+            <div className="hidden sm:flex items-center justify-center text-slate-400 font-bold text-xl pb-2">→</div>
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1">Sampai Tanggal</label>
+              <input
+                type="date"
+                value={filterEnd}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFilterEnd(v);
+                  if (v < filterStart) setFilterStart(v);
+                }}
+                max={today}
+                className="bg-[#4A7C2F]/5 border border-[#4A7C2F]/20 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[#4A7C2F]/20 focus:border-[#4A7C2F] outline-none"
+              />
             </div>
-            {!isToday && (
+            {!isTodayRange && (
               <button
-                onClick={() => setFilterDate(new Date().toISOString().split("T")[0])}
-                className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-3 py-2 rounded-lg transition shrink-0"
+                onClick={() => { setFilterStart(today); setFilterEnd(today); }}
+                className="text-xs font-bold text-[#4A7C2F] hover:bg-[#4A7C2F]/10 px-4 py-2.5 rounded-xl transition self-end"
               >
-                Reset ke Hari Ini
+                Reset Hari Ini
               </button>
             )}
           </div>
@@ -181,14 +207,14 @@ function Admin() {
               </div>
               <div>
                 <h3 className="font-extrabold text-slate-800 tracking-tight">Antrean per Layanan</h3>
-                <p className="text-[11px] text-slate-400">{isToday ? "Hari ini" : filterDateDisplay}</p>
+                <p className="text-[11px] text-slate-400">{isTodayRange ? "Hari ini" : `${formatTanggal(filterStart)} — ${formatTanggal(filterEnd)}`}</p>
               </div>
             </div>
             <div className="space-y-4">
               {services.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8">
                   <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center"><Ticket className="w-6 h-6 text-slate-300" /></div>
-                  <p className="text-sm font-semibold text-slate-400">Belum ada data di tanggal ini</p>
+                  <p className="text-sm font-semibold text-slate-400">Belum ada data di periode ini</p>
                 </div>
               ) : services.map((s: any) => (
                 <div key={s.name}>
@@ -211,7 +237,7 @@ function Admin() {
               </div>
               <div>
                 <h3 className="font-extrabold text-slate-800 tracking-tight">Riwayat Antrean</h3>
-                <p className="text-[11px] text-slate-400">{history.length} antrean terbaru</p>
+                <p className="text-[11px] text-slate-400">{history.length} antrean di periode ini</p>
               </div>
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[400px] overflow-y-auto">
