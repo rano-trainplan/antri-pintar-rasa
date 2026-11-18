@@ -197,10 +197,10 @@ function Input({ label, icon, error, optional, children }: any) {
   );
 }
 
-/* ===================== DROPDOWN MOBILE-SAFE ===================== */
+/* ===================== DROPDOWN SIMPLE & CLEAN ===================== */
 function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 260 });
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, maxH: 280 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const selected = SERVICES.find(s => s.value === value);
@@ -246,27 +246,33 @@ function ServiceSelect({ value, onChange, error }: { value: string; onChange: (v
     <div>
       <label className="mb-1.5 block px-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Pilih Layanan</label>
       <button ref={btnRef} type="button" onClick={() => setIsOpen(o => !o)}
-        className={`flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200"} ${isOpen ? "border-[#4A7C2F] ring-2 ring-[#4A7C2F]/20" : ""}`}>
-        <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
-        <span className={`flex-1 text-[15px] ${selected ? "text-slate-800" : "text-slate-400"}`}>{selected ? selected.label : "-- Pilih Layanan --"}</span>
+        className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all ${error ? "border-red-300 ring-2 ring-red-100" : "border-slate-200"} ${isOpen ? "border-[#4A7C2F] ring-2 ring-[#4A7C2F]/20" : ""}`}>
+        <span className={`text-[15px] ${selected ? "text-slate-800 font-semibold" : "text-slate-400"}`}>
+          {selected ? selected.label : "-- Pilih Layanan --"}
+        </span>
         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
       {isOpen && typeof document !== "undefined" && createPortal(
         <div ref={listRef}
-          className="z-[9999] rounded-2xl border border-slate-100 bg-white p-1.5 shadow-2xl shadow-slate-300/50 animate-[pop_.18s_ease] overflow-y-auto"
+          className="z-[9999] rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 animate-[pop_.18s_ease] overflow-y-auto"
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH, overscrollBehavior: "contain" }}>
-          {SERVICES.map(s => (
-            <button key={s.value} type="button" onClick={() => handleSelect(s.value)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${value === s.value ? "bg-[#4A7C2F]/10" : "hover:bg-slate-50"}`}>
-              <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${s.color}`} />
-              <span className="flex-1 min-w-0">
-                <span className="block text-[14px] font-semibold text-slate-800 truncate">{s.label}</span>
-                <span className="block text-[11px] text-slate-500 truncate">{s.desc}</span>
-              </span>
-              {value === s.value && <Check className="h-4 w-4 text-[#4A7C2F] shrink-0" />}
-            </button>
-          ))}
+          <div className="p-1.5">
+            {SERVICES.map(s => {
+              const isActive = value === s.value;
+              return (
+                <button key={s.value} type="button" onClick={() => handleSelect(s.value)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${isActive ? "bg-[#4A7C2F]/10" : "hover:bg-slate-50"}`}>
+                  <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${s.color}`} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14px] font-bold text-slate-800">{s.label}</span>
+                    <span className="block text-[11px] text-slate-500 mt-0.5">{s.desc}</span>
+                  </span>
+                  {isActive && <Check className="h-4 w-4 text-[#4A7C2F] shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
         </div>,
         document.body
       )}
