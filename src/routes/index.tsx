@@ -87,31 +87,44 @@ function Index() {
   const updateForm = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errs: Record<string, string> = {};
-    if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
-    if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
-    if (!form.layanan) errs["layanan"] = "Pilih layanan";
-    setErrors(errs);
-    if (Object.keys(errs).length) return;
+  e.preventDefault();
+  const errs: Record<string, string> = {};
+  if (!form.nama.trim()) errs["nama"] = "Nama wajib diisi";
+  if (!form.nik.trim()) errs["nik"] = "NIK wajib diisi";
+  if (!form.layanan) errs["layanan"] = "Pilih layanan";
+  setErrors(errs);
+  if (Object.keys(errs).length) return;
 
-    setLoading(true);
-    const { count } = await supabase.from("public_queue_view").select("id", { count: "exact", head: true }).eq("status", "waiting");
-    const { data: noAntrean, error: rpcError } = await supabase.rpc('get_next_queue_number');
-    if (rpcError || !noAntrean) {
-      setLoading(false);
-      setErrors({ form: "Gagal mengambil nomor antrean. Coba lagi." });
-      return;
-    }
-    const { data, error } = await supabase.from("queues").insert([{
-      queue_number: noAntrean, customer_name: form.nama, customer_id: form.nik,
-      contact: form.kontak, service_type: form.layanan, status: "waiting"
-    }]).select().single();
+  setLoading(true);
 
-    setLoading(false);
-    if (error) setErrors({ form: error.message });
-    else { setPosition((count ?? 0) + 1); setTicket(data); setActiveTab("home"); }
-  };
+  // Hitung total antrean hari ini untuk generate nomor
+  const today = new Date().toISOString().split("T")[0];
+  const { count: todayCount } = await supabase
+    .from("queues")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", `${today}T00:00:00`);
+
+  const nextNum = (todayCount ?? 0) + 1;
+  const noAntrean = `A-${String(nextNum).padStart(3, "0")}`;
+
+  // Insert ke database
+  const { data, error } = await supabase.from("queues").insert([{
+    queue_number: noAntrean,
+    customer_name: form.nama,
+    customer_id: form.nik,
+    contact: form.kontak,
+    service_type: form.layanan,
+    status: "waiting"
+  }]).select().single();
+
+  setLoading(false);
+  if (error) {
+    setErrors({ form: error.message });
+  } else {
+    setPosition(nextNum);
+    setTicket(data);
+  }
+};
 
   const saveToHistory = (t: any) => {
     const newItem: HistoryItem = {
