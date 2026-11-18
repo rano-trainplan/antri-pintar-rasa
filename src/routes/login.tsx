@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, Loader2, ShieldCheck } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, Loader2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "../integrations/supabase/client";
 
