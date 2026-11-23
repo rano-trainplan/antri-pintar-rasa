@@ -124,7 +124,7 @@ function Index() {
     const { data, error } = await supabase.rpc("submit_queue", {
       p_customer_name: form.nama,
       p_customer_id: form.nik,
-      p_contact: form.kontak || null,
+      p_contact: form.kontak || "",
       p_service_type: form.layanan,
     });
 
@@ -153,8 +153,8 @@ function Index() {
       completed_at: t.completed_at,
       finishedAt: new Date().toISOString(),
       rated: hasFeedback || !!ratingData?.rating,
-      rating: ratingData?.rating,
-      comment: ratingData?.comment,
+      ...(ratingData?.rating !== undefined ? { rating: ratingData.rating } : {}),
+      ...(ratingData?.comment !== undefined ? { comment: ratingData.comment } : {}),
     };
     const updated = [...history, newItem].slice(-30);
     setHistory(updated);
